@@ -56,7 +56,8 @@ object Dependencies {
   val scalaTest = "org.scalatest" %% "scalatest" % "2.2.4" % "test"
   val sl4j = "org.slf4j" % "slf4j-log4j12" % "1.7.10"
   val javaparser = "com.github.javaparser" % "javaparser-core" % "2.0.0"
-  val betterDocs = Seq(spark, parserCombinator, scalaTest, sl4j, javaparser)
+  val mllib = "org.apache.spark"  % "spark-mllib_2.11" % "1.2.1"
+  val betterDocs = Seq(spark, parserCombinator, scalaTest, sl4j, javaparser, mllib)
 
   // transitively uses
   // commons-httpclient-3.1
