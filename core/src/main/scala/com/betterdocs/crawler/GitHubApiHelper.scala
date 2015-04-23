@@ -124,6 +124,7 @@ object GitHubApiHelper extends Logger {
   }
 
   def executeMethod(url: String, token: String): GetMethod = {
+    println("Executing : " + url + " . with token: " + token)
     val method = new GetMethod(url)
     method.setDoAuthentication(true)
     // Please add the oauth token instead of <token> here. Or github may give 403/401 as response.

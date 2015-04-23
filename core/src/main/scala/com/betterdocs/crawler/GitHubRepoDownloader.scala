@@ -40,7 +40,8 @@ class GitHubRepoDownloaderActor extends Actor with Logger {
         self ! DownloadPublicRepos(nextSince)
       } catch {
         case ex: Exception =>
-          log.error("Exception occured" + "Trying to download, waiting for other tokens")
+          log.error("Exception occured.." + "Trying to download, waiting for other tokens " + ex.getMessage)
+          
           self ! DownloadPublicRepos(since)
       }
 

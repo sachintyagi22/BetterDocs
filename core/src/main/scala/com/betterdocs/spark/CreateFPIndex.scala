@@ -42,14 +42,15 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.HashMap
-
 import org.json4s._
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.write
+import java.util.regex.Pattern
+import java.util.regex.Matcher
 
 object CreateFPIndex {
   
-  val baseDir = "output-tmp"
+  val baseDir = "output-fp"
   val transactionFilePath = s"/$baseDir/transactions/"
   val reposLocation = s"/$baseDir/repos/"
   val reposDetailsPath = s"/$baseDir/repodetails/objects"
@@ -60,18 +61,19 @@ object CreateFPIndex {
   val githubPath = "/home/sachint/github/"
   val repoDeclaredPath = s"/$baseDir/repodetails/declared/"
   val repoUsedPath = s"/$baseDir/repodetails/used/"
+  val repoDependencyPath = s"/$baseDir/dependency/"
 
   def main(args: Array[String]): Unit = {
 
     val minSupport = 25;
-    val transactionSize = 3;
+    val transactionSize = 4;
 
     val conf = new SparkConf()
       .setMaster(BetterDocsConfig.sparkMaster)
       .setAppName("CreateFPIndexJob")
       .set("spark.files.overwrite", "true")
       .set("spark.hadoop.validateOutputSpecs", "false")
-      .set("spark.driver.memory", "2g")
+      .set("spark.driver.memory", "3g")
 
     val sc = new SparkContext(conf)
 
@@ -81,10 +83,9 @@ object CreateFPIndex {
     // Output the java files from repos (plus other info) in the format that can be bulk uploaded to ES.
     if (args.contains("file")) { saveFilesForES(repos) }
 
-    val repoDetails = null//readOrSaveRepoDetails(sc, repos)
+    val repoDetails = readOrSaveRepoDetails(sc, repos)
 
-    // Load transactions if locally stored earlier else parse java files and store trasactions to FS.
-    val transactions = readOrSaveTransactions(sc, repoDetails, transactionSize)
+    val transactions = repoDetails.flatMap { x => x._4 }.filter { x => x._2.size() > transactionSize }
 
     //Create/load/store vertical views of transactions. Needed for getting file info for patterns.
     val verticalDataMap = readOrSaveVerticalData(sc, transactions, minSupport)
@@ -101,18 +102,18 @@ object CreateFPIndex {
       //val fi = model.freqItems
 
       //val verticalMap = verticalDataMap.filter(f => fi.exists { x => x.equals(f._1) }).collect().toMap;
-      //val verticalMap = verticalDataMap.collect().toMap;
+      val verticalMap = verticalDataMap.collect().toMap;
 
       if (args.contains("pattern")) {
         fs.map { x =>
 
-          /*val sets = x.items.map { x => verticalMap.get(x) }.map { x => x.getOrElse(Set.empty) }
+         /* val sets = x.items.map { x => verticalMap.get(x) }.map { x => x.getOrElse(Set.empty) }
           val result = getIntersectionOfSets(sets)
           var ss = result.toSeq.sortWith((a, b) => {
             Try(a.split("#").last.toInt).getOrElse(0) < Try(b.split("#").last.toInt).getOrElse(0)
           })
-          if (ss.size > 10) {
-            ss = ss.take(10);
+          if (ss.size > 5) {
+            ss = ss.take(5);
           }*/
           val ss = Seq.empty[String];
           toJson(x.items, x.freq, ss, true)
@@ -183,57 +184,59 @@ object CreateFPIndex {
         //repoScoreMap.put(orgsName+"/"+repoName, score.getOrElse(0))
         // Ignoring exclude packages.
         (ZipBasicParser.readFilesAndPackages(z)._1, score, orgsName)
-      }.cache()
-      repos.saveAsObjectFile(reposLocation);
+      }
+      //repos.saveAsObjectFile(reposLocation);
     }
 
     repos
   }
 
 
-  def readOrSaveTransactions(sc: SparkContext, repoDetails: RDD[(String, Map[String,Int], Map[String,Int], java.util.HashMap[String, java.util.List[String]])], transactionSize: Int): RDD[(String, java.util.List[String])] = {
-    var transactions: RDD[(String, java.util.List[String])] = null;
 
-    if (Files.exists(Paths.get(transactionFilePath))) {
-      transactions = sc.objectFile[(String, java.util.List[String])](transactionFilePath).cache()
-    }
+  def readOrSaveRepoDetails(sc: SparkContext, repos: RDD[(ArrayBuffer[(String, String)], Option[Int], Option[String])])= {
+    //var repoDetails: RDD[(String, Map[String,Int], Map[String,Int], java.util.HashMap[String, java.util.List[String]])] = null
 
-    if (transactions == null || transactions.count() < 1) {
-      transactions = repoDetails.flatMap { x => x._4 }.filter { x => x._2.size() > transactionSize }
+    /*if (Files.exists(Paths.get(reposDetailsPath))) {
+      repoDetails = sc.objectFile[(String, Map[String,Int], Map[String,Int], java.util.HashMap[String, java.util.List[String]])](reposDetailsPath)
+    }*/
 
-      transactions.saveAsObjectFile(transactionFilePath);
-    }
-    transactions
-  }
-
-
-  def readOrSaveRepoDetails(sc: SparkContext, repos: RDD[(ArrayBuffer[(String, String)], Option[Int], Option[String])]): RDD[(String, Map[String,Int], Map[String,Int], java.util.HashMap[String, java.util.List[String]])] = {
-    var repoDetails: RDD[(String, Map[String,Int], Map[String,Int], java.util.HashMap[String, java.util.List[String]])] = null
-
-    if (Files.exists(Paths.get(reposDetailsPath))) {
-      repoDetails = sc.objectFile[(String, Map[String,Int], Map[String,Int], java.util.HashMap[String, java.util.List[String]])](reposDetailsPath).cache()
-    }
-
-    if (repoDetails == null || repoDetails.count() < 1) {
+    /*if (repoDetails == null || repoDetails.count() < 1) {
       repoDetails = repos.map { f =>
         val (files, score, orgsName) = f
-        new JavaMethodTransactionGenerator().generateTransactions(files.toMap, List(), score.getOrElse(0), orgsName.getOrElse("ErrorRecord"))
+        val trns = new JavaMethodTransactionGenerator().generateTransactions(files.toMap, List(), score.getOrElse(0), orgsName.getOrElse("ErrorRecord"))
+        (trns._1, trns._2, trns._3, trns._4, score.getOrElse(0), score.getOrElse(0))
       }
-      repoDetails.saveAsObjectFile(reposDetailsPath)
-    }
+      //repoDetails.saveAsObjectFile(reposDetailsPath)
+    }*/
 
-    def repoPkgToString(repo: String, pkgs: Map[String, Int]): String = {
+    val repoDetails = repos.map { f =>
+        val (files, score, orgsName) = f
+        val trns = new JavaMethodTransactionGenerator().generateTransactions(files.toMap, List(), score.getOrElse(0), orgsName.getOrElse("ErrorRecord"))
+        (trns._1, trns._2, trns._3, trns._4, score.getOrElse(0), orgsName.getOrElse("N/A"))
+     }
+    
+    def repoPkgToString(repo: String, decpkgs: Map[String, Int], usedpkgs: Map[String, Int], score: Int, orgsName: String): String = {
       implicit val formats = Serialization.formats(NoTypeHints)
-      """|{ "index" : { "_index" : "betterdocs", "_type" : "declaredPackages" } }
-         |""".stripMargin + write(Map("repo" -> repo, "transactions" -> write(pkgs.toSeq)))
+      """|{ "index" : { "_index" : "fpgrowth", "_type" : "repodetails" } }
+         |""".stripMargin + write(Map("repo" -> repo, 
+             "declaredPackages" -> write(decpkgs.toSeq), 
+             "usedPackages" -> write(usedpkgs.toSeq),
+              "score" -> score,
+              "orgsName" -> orgsName
+             ))
     }
+    
+    val dependency = repoDetails.map(f => {
+      (f._1, f._3.map(d =>{
+        repoDetails.filter(f=> f._2.contains(d._1)).map(f=> f._1).collect().headOption.getOrElse("")
+      }).toSet)
+    }).saveAsTextFile(repoDependencyPath)
+    
     //Declared packages used enough elsewhere
     //val declaredPackages = repoDetails.map(f => (f._1, f._2.toArray().toSet.filter { x => fi.exists { y => y.toString().equals(x) }})).map(f => repoPkgToString(f._1, f._2))
-    val declaredPackages = repoDetails.map(f => repoPkgToString(f._1, f._2))
-    val usedPackages = repoDetails.map(f => repoPkgToString(f._1, f._3))
+    val packageDetails = repoDetails.map(f => repoPkgToString(f._1, f._2, f._3, f._5, f._6))
 
-    declaredPackages.saveAsTextFile(repoDeclaredPath)
-    usedPackages.saveAsTextFile(repoUsedPath)
+    packageDetails.saveAsTextFile(repoDeclaredPath)
     
 
     repoDetails
@@ -244,7 +247,7 @@ object CreateFPIndex {
   def readOrSaveVerticalData(sc: SparkContext, transactions: RDD[(String, java.util.List[String])], minSupport: Int): RDD[(Object, Set[String])] = {
     var verticalDataMap: RDD[(Object, Set[String])] = null;
     if (Files.exists(Paths.get(verticalDataPath))) {
-      verticalDataMap = sc.objectFile[(Object, Set[String])](verticalDataPath).cache()
+      verticalDataMap = sc.objectFile[(Object, Set[String])](verticalDataPath)
     }
 
     if (verticalDataMap == null || verticalDataMap.count() < 1) {
@@ -280,17 +283,28 @@ object CreateFPIndex {
   def toJson[Item: ClassTag](items: Array[Item], freq: Long, set: Seq[String], addESHeader: Boolean = false): String = {
     implicit val formats = Serialization.formats(NoTypeHints)
     if (addESHeader) {
-      """|{ "index" : { "_index" : "betterdocs", "_type" : "patterns" } }
+      """|{ "index" : { "_index" : "fpgrowth", "_type" : "patterns" } }
          |""".stripMargin + write(Map("freq" -> freq, "length" -> items.length, "body" -> items, "locations" -> write(set)))
     } else { "[ " + freq + " ] : " + write(items) }
   }
 
   def toVerticalJson(key: String, trans: Set[String], addESHeader: Boolean = false): String = {
     implicit val formats = Serialization.formats(NoTypeHints)
-
+    val p = Pattern.compile("([a-zA-Z]+.*)\\.([a-zA-Z]*)", Pattern.CASE_INSENSITIVE);
+    def getMatches(p:Pattern, s:String, acc: List[String]):List[String] ={
+      val matcher = p.matcher(s);
+      if (matcher.find()) {
+        val group = matcher.group(1);
+        getMatches(p, group, acc.+:(group));
+      }else{
+        acc
+      }
+    }
+    val index = getMatches(p, key, List());
+    
     if (addESHeader) {
-      """|{ "index" : { "_index" : "betterdocs", "_type" : "vertical" } }
-         |""".stripMargin + write(Map("event" -> key, "transactions" -> write(trans)))
+      """|{ "index" : { "_index" : "fpgrowth", "_type" : "vertical" } }
+         |""".stripMargin + write(Map("event" -> key, "event_index" -> write(index), "transactions" -> write(trans), "freq"-> trans.size))
     } else { "[ " + key + " ] : " + write(trans) }
   }
 
@@ -304,19 +318,4 @@ object CreateFPIndex {
   }
 }
 
-object createTest {
-  def main(args: Array[String]): Unit = {
-    val x = "http://github.com/apache/hadoop/blob/trunk/hadoop-mapreduce-project/hadoop-mapreduce-client/hadoop-mapreduce-client-app/src/test/java/org/apache/hadoop/mapreduce/v2/app/TestKill.java#L298#20"
-    println(x.split("#").last.toInt)
-    val s1 = Set("a", "b", "c", "d", "e")
-    val s2 = Set("a", "b", "d", "e")
-    val s3 = Set("a", "c", "d", "e")
-    val s4 = Set("a", "b", "c", "d", "e")
-
-    val a = Array(s1, s2, s3, s4)
-
-    val i = CreateFPIndex.getIntersectionOfSets(a);
-    println(i.mkString(", "))
-  }
-}
 

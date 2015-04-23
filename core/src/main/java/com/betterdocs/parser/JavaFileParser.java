@@ -1,5 +1,19 @@
 package com.betterdocs.parser;
 
+import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseException;
 import com.github.javaparser.ast.CompilationUnit;
@@ -22,18 +36,6 @@ import com.github.javaparser.ast.stmt.CatchClause;
 import com.github.javaparser.ast.stmt.ExpressionStmt;
 import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
-
-import java.io.ByteArrayInputStream;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
 
 @SuppressWarnings("rawtypes")
 public class JavaFileParser extends VoidVisitorAdapter {
@@ -62,7 +64,7 @@ public class JavaFileParser extends VoidVisitorAdapter {
 		try {
 			parse(new ByteArrayInputStream(classcontent.getBytes()));
 		} catch (Throwable e) {
-			System.err.println("Could not parse. Skipping file: " + url + ", exception: " + e);
+			//System.err.println("Could not parse. Skipping file: " + url + ", exception: " + e);
 			//e.printStackTrace(System.err);
 			return;
 		}
@@ -313,7 +315,7 @@ public class JavaFileParser extends VoidVisitorAdapter {
 	
 	public static void main(String[] args) throws Throwable {
 		// creates an input stream for the file to be parsed
-		String test = "/home/sachint/work/Test.java";
+		/*String test = "/home/sachint/work/Test.java";
 		String test1 = "/home/sachint/work/Test1.java";
 		
 		FileInputStream in = new FileInputStream(
@@ -332,8 +334,24 @@ public class JavaFileParser extends VoidVisitorAdapter {
 		}
 		
 		System.out.println(m.gedUsedPackages());
-		System.out.println(m.getDeclaredPackage());
+		System.out.println(m.getDeclaredPackage());*/
+		
+		String s = "org.apache.synapse.config.Entry.isDynamic";
+		Pattern p = Pattern.compile("([a-zA-Z]+.*)\\.([a-zA-Z]*)", Pattern.CASE_INSENSITIVE);
+		ArrayList<String> result = new ArrayList<String>();
+		getMatches(s, p, result);
+		System.out.println(result);
 
+	}
+
+	private static void getMatches(String s, Pattern p, List<String> result) {
+		Matcher matcher = p.matcher(s);
+		if(matcher.find()){
+			String group = matcher.group(1);
+			result.add(group);
+			getMatches(group, p, result);
+		}
+		
 	}
 
 }

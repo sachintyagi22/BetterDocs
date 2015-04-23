@@ -44,7 +44,7 @@ object BetterDocsBuild extends Build {
      // retrieveManaged := true, // enable this if we need jars of dependencies.
       crossPaths := false,
       fork := true,
-      javaOptions += "-Xmx2048m" // For running spark job.
+      javaOptions += "-Xmx3072m" // For running spark job.
     )
 
 }
