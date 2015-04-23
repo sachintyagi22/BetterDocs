@@ -17,30 +17,25 @@
 
 package com.betterdocs.spark
 
-import java.io.File
-
 import com.betterdocs.configuration.BetterDocsConfig
 import com.betterdocs.crawler.{Repository, ZipBasicParser}
-import com.betterdocs.indexer.JavaFileIndexer
-import com.betterdocs.logging.Logger
+import com.betterdocs.indexer.JavaASTBasedIndexer
 import com.betterdocs.parser.RepoFileNameParser
 import org.apache.commons.compress.archivers.zip.ZipFile
 import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.collection.mutable.ArrayBuffer
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 
 object CreateIndexJob {
 
   case class SourceFile(repoId: Int, fileName: String, fileContent: String)
 
-  def mapToSourceFiles(repo: Repository, map: ArrayBuffer[(String, String)]) = {
-    def fileNameToURL(f: String) = { // TODO: use method from javaFileIndexer.
-      val (_, actualFileName) = f.splitAt(f.indexOf('/'))
-      s"""${repo.login}/${repo.name}/blob/${repo.defaultBranch}$actualFileName"""
-    }
+  def mapToSourceFiles(repo: Option[Repository], map: ArrayBuffer[(String, String)]) = {
+    val repo2 = repo.getOrElse(Repository.invalid)
+    import com.betterdocs.indexer.JavaFileIndexerHelper._
 
-    map.map(x => SourceFile(repo.id, fileNameToURL(x._1), x._2)).toSet
+    map.map(x => SourceFile(repo2.id, fileNameToURL(repo2, x._1), x._2)).toSet
   }
 
   def main(args: Array[String]): Unit = {
@@ -48,33 +43,27 @@ object CreateIndexJob {
       .setMaster(BetterDocsConfig.sparkMaster)
       .setAppName("CreateIndexJob")
     val sc = new SparkContext(conf)
-    sc.binaryFiles(BetterDocsConfig.githubDir).map { case (zipFile, _) =>
-      val zipFileName = zipFile.stripPrefix("file:")
+    val zipFileNameRDD = sc.binaryFiles(BetterDocsConfig.githubDir).map { case (zipFile, _) =>
+      zipFile.stripPrefix("file:")
+    }
+    val zipFileExtractedRDD = zipFileNameRDD.flatMap { zipFileName =>
       // Ignoring exclude packages.
-      val (filesMap, packages) = ZipBasicParser.readFilesAndPackages(new ZipFile(zipFileName))
-      (filesMap, RepoFileNameParser(zipFileName), packages)
-    }.flatMap { f =>
+      val zipFileOpt = Try(new ZipFile(zipFileName)).toOption
+      zipFileOpt.map { zipFile =>
+        val (filesMap, packages) = ZipBasicParser.readFilesAndPackages(zipFile)
+        (filesMap, RepoFileNameParser(zipFileName), packages)
+      }
+    }
+
+    // Create indexes for elastic search.
+    zipFileExtractedRDD.map { f =>
       val (files, repo, packages) = f
-      new JavaFileIndexer()
-        .generateTokens(files.toMap, packages, repo)
-    }.map(x => toJson(x, addESHeader = true)).saveAsTextFile(BetterDocsConfig.sparkOutput)
-
-    // Generate repository index.
-    sc.binaryFiles(BetterDocsConfig.githubDir).flatMap { case (zipFile, _) =>
-      val zipFileName = zipFile.stripPrefix("file:")
-      // Ignoring exclude packages.
-      RepoFileNameParser(zipFileName)
-    }.map(x => toJson(x, addESHeader = true, isToken = false))
-      .saveAsTextFile(BetterDocsConfig.sparkOutput + "/repo")
-
-    sc.binaryFiles(BetterDocsConfig.githubDir).flatMap { case (zipFile, _) =>
-      val zipFileName = zipFile.stripPrefix("file:")
-      // Ignoring exclude packages.
-      val repo = RepoFileNameParser(zipFileName).getOrElse(Repository.invalid)
-      val (filesMap, _) = ZipBasicParser.readFilesAndPackages(new ZipFile(zipFileName))
-      mapToSourceFiles(repo, filesMap)
-    }.map(x => toJson(x, addESHeader = true, isToken = false))
-      .saveAsTextFile(BetterDocsConfig.sparkOutput + "/source")
+      (repo, new JavaASTBasedIndexer()
+        .generateTokens(files.toMap, packages, repo), mapToSourceFiles(repo, files))
+    }.flatMap { case (Some(a), b, c) =>
+      Seq(toJson(a, isToken = false), toJson(b, isToken = true), toJson(c, isToken = false))
+    case _ => Seq()
+    }.saveAsTextFile(BetterDocsConfig.sparkIndexOutput)
 
   }
 
@@ -89,64 +78,24 @@ object CreateIndexJob {
     Try(f.stripSuffix(".zip").split("~").tail.head).toOption
   }
 
-  def toJson[T <: AnyRef <% Product with Serializable](t: T, addESHeader: Boolean = false,
-      isToken: Boolean = true): String = {
+  def toJson[T <:AnyRef <% Product with Serializable](t: Set[T], isToken: Boolean): String = {
+    (for (item <- t) yield toJson(item, addESHeader = true, isToken = isToken)).mkString("\n")
+  }
+
+  def toJson[T <: AnyRef <% Product with Serializable](t: T, addESHeader: Boolean = true,
+      isToken: Boolean = false ): String = {
     import org.json4s._
     import org.json4s.jackson.Serialization
     import org.json4s.jackson.Serialization.write
     implicit val formats = Serialization.formats(NoTypeHints)
-
+    val indexName = t.productPrefix.toLowerCase
     if (addESHeader && isToken) {
       """|{ "index" : { "_index" : "betterdocs", "_type" : "custom" } }
          | """.stripMargin + write(t)
-    } else if (addESHeader) { // scalastyle:off
-      s"""|{ "index" : { "_index" : "${t.productPrefix.toLowerCase}", "_type" : "type${t.productPrefix.toLowerCase}" } }
-          |""".stripMargin + write(t)  // scalastyle:on
+    } else if (addESHeader) {
+      s"""|{ "index" : { "_index" : "$indexName", "_type" : "type$indexName" } }
+          |""".stripMargin + write(t)
     } else "" + write(t)
 
-  }
-
-}
-
-object CreateIndex extends Logger {
-
-  def main(args: Array[String]): Unit = {
-    import com.betterdocs.crawler.ZipBasicParser._
-    for (f <- listAllFiles(BetterDocsConfig.githubDir)) {
-      val zipFile = Try(new ZipFile(f))
-      zipFile match {
-        case Success(zf) =>
-          val tokens: String = getTokens(f, zf)
-          scala.tools.nsc.io.File(BetterDocsConfig.sparkOutput + s"/$f.tokens").writeAll(tokens)
-        case Failure(e) => log.warn(s"$f failed because ${e.getMessage}")
-      }
-    }
-  }
-
-  def getTokens(f: File, zf: ZipFile): String = {
-    val indexer: JavaFileIndexer = new JavaFileIndexer
-    import com.betterdocs.crawler.ZipBasicParser._
-    import indexer._
-    val files: (ArrayBuffer[(String, String)], List[String]) = readFilesAndPackages(zf)
-    val repo = RepoFileNameParser(f.getName)
-    val tokens = generateTokens(files._1.toMap, files._2, repo)
-      .map(CreateIndexJob.toJson(_, addESHeader = true)).mkString("\n")
-    tokens
-  }
-}
-
-object CreateIndexPar extends Logger {
-
-  def main(args: Array[String]): Unit = {
-    import com.betterdocs.crawler.ZipBasicParser._
-    listAllFiles(BetterDocsConfig.githubDir).par.foreach { f =>
-      val zipFile = Try(new ZipFile(f))
-      zipFile match {
-        case Success(zf) =>
-          val tokens: String = CreateIndex.getTokens(f, zf)
-          scala.tools.nsc.io.File(BetterDocsConfig.sparkOutput + s"/$f.tokens").writeAll(tokens)
-        case Failure(e) => log.warn(s"$f failed because ${e.getMessage}")
-      }
-    }
   }
 }

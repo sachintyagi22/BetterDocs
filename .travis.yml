@@ -2,16 +2,34 @@ language: scala
 scala:
 - 2.11.6
 jdk:
-- openjdk7
- 
+  - oraclejdk8
+install:
+  - IDEA_VERSION=14.1.1
+  - IDEA_TAR=ideaIC-${IDEA_VERSION}.tar.gz
+  - |
+    if [ -f ~/$IDEA_TAR ]; then
+        echo "Copying existing IDEA archive."
+        cp ~/$IDEA_TAR .
+    else
+        echo "Downloading IDEA archive."
+        travis_retry wget http://download.jetbrains.com/idea/$IDEA_TAR -P ~
+        echo "Copying IDEA archive."
+        cp ~/$IDEA_TAR .
+    fi
+  - rm -rf idea-IC-*
+  - echo "Installing IDEA to idea-IC/"
+  - tar zxf $IDEA_TAR
+  - rm -rf $IDEA_TAR
+  - mv idea-IC-* idea-IC
+  - echo "$(pwd)/idea-IC"
 services:
  
 env:
- 
-before_script:
+  global:
+    - IDEA_LIB="$(pwd)/idea-IC/lib"
+    - STYLE_OUTPUT="$(pwd)/plugins/idea/betterdocsidea/target/"
 script:
--  sbt scalastyle
--  sbt test
+-  sbt scalastyle test findbugs checkstyle cpd pmd && cat "$STYLE_OUTPUT"/cpd/cpd.xml "$STYLE_OUTPUT"/pmd.xml "$STYLE_OUTPUT"/checkstyle-result.xml "$STYLE_OUTPUT"/findbugs/report.xml
 
 notifications:
-email: false
+email: true

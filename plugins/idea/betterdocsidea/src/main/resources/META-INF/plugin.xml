@@ -1,0 +1,61 @@
+<idea-plugin version="3">
+  <id>betterdocsidea</id>
+  <name>Better Docs Plugin for Intellij Idea</name>
+  <version>0.0.1-beta</version>
+
+  <vendor email="betterdocs@googlegroups.com" url="https://github.com/ScrapCodes/BetterDocs/issues">Betterdocs</vendor>
+
+  <description><![CDATA[
+    <strong><i>Betterdocs is not docs.</i></strong>
+<br/>
+  <p>  A tool to assist you when you need code references.
+  As Developers, we tend to hunt for best-practices of using common and uncommon libraries in order to make our code
+  more efficient. Often, a lot of time and energy is spent understanding the pros and cons of different approaches.
+  BetterDocs aims to solve this problem. It cites common practices from standard code references.
+  </p>
+<br/>
+  How it works?
+<br/><p>
+  It goes through existing popular public projects and gathering required information. When a user searches, it queries the database and fetches relevant results.
+
+  Currently, the source for code of popular projects is Github</p>
+<br/><p>
+  Technology Stack : Elastic Search, Spark</p>
+<br/><p>
+  <b>Current Status:</b> Beta</p>
+<br/><p>
+  <b>Supported Languages:</b> Java</p>
+
+    ]]></description>
+
+  <change-notes><![CDATA[
+    This is a first ever limited audience beta testing release.
+    ]]>
+  </change-notes>
+
+  <!-- please see http://confluence.jetbrains.com/display/IDEADEV/Build+Number+Ranges for description -->
+  <idea-version since-build="131"/>
+
+  <!-- please see http://confluence.jetbrains.com/display/IDEADEV/Plugin+Compatibility+with+IntelliJ+Platform+Products
+       on how to target different products -->
+  <!-- uncomment to enable plugin in all products
+  <depends>com.intellij.modules.lang</depends>
+  -->
+
+  <application-components>
+    <!-- Add your application components here -->
+  </application-components>
+
+  <project-components>
+    <!-- Add your project components here -->
+  </project-components>
+    <actions>
+
+    </actions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Better Docs" anchor="right" factoryClass="com.imaginea.betterdocs.BetterDocsWindow"/>
+        <applicationConfigurable instance="com.imaginea.betterdocs.BetterDocsSettings"/>
+    </extensions>
+</idea-plugin>
+

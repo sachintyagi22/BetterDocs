@@ -15,32 +15,40 @@
  * limitations under the License.
  */
 
-package com.betterdocs.parser
+package com.imaginea.betterdocs;
 
-import com.betterdocs.crawler.Repository
-import com.betterdocs.logging.Logger
-
-import scala.util.Try
-import scala.util.parsing.combinator._
-
-object RepoFileNameParser extends RegexParsers with Logger {
-
-  def apply(input: String): Option[Repository] = Try(parseAll(repo, input)).toOption.flatMap {
-    case Success(result, _) => Some(result)
-    case failure: NoSuccess => log.error(failure.msg)
-      None
-  }
-
-  def repo: Parser[Repository] = {
-    "(|.*/)repo".r ~> rep(tilde ~> name) ^^ {
-      x => val y = x.toArray
-        val branch = if (y.size == 7) y(5) else "master"
-        Repository(y(0), y(2).toInt, y(1), false, "Java", branch,
-          x.last.trim.stripSuffix(".zip").toInt)
+public class ESFileContent {
+    public Query getQuery() {
+        return query;
     }
-  }
 
-  def name: Parser[String] = """[^~]+""".r
+    private Query query;
 
-  def tilde: Parser[String] = """~""".r
+    public static class Query {
+        private Term term;
+
+        public void setTerm(Term term) {
+            this.term = term;
+        }
+
+        public Term getTerm() {
+            return term;
+        }
+    }
+
+    public static class Term {
+        private String fileName;
+
+        public void setFileName(String fileName) {
+            this.fileName = fileName;
+        }
+
+        public String getFileName() {
+            return fileName;
+        }
+    }
+
+    public void setQuery(Query query) {
+        this.query = query;
+    }
 }

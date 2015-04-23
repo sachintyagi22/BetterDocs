@@ -17,9 +17,10 @@
 
 package com.betterdocs.parser
 
-import java.io.InputStream
+import java.io.{StringWriter, InputStream}
 
 import com.betterdocs.crawler.Repository
+import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 class ParserSuite extends FunSuite with BeforeAndAfterAll {
@@ -51,6 +52,17 @@ class ParserSuite extends FunSuite with BeforeAndAfterAll {
     val r = RepoFileNameParser("repo~apache~zookeeper~160999~false~Java~789.zip")
     assert(r == Some(Repository("apache", 160999, "zookeeper", false, "Java", "master", 789)))
   }
+
+  test("Multiple valid repo names.") {
+    val stream =
+      Thread.currentThread().getContextClassLoader.getResourceAsStream("repo_names")
+    val writer = new StringWriter()
+    IOUtils.copy(stream, writer)
+    val repoNames = writer.toString.split("\n").map { x =>
+      (RepoFileNameParser(x), x)
+    }
+    assert(repoNames.filter(x => x._1 == None) === Seq())
+  }
 }
 
 class MethodVisitorSuite extends FunSuite with BeforeAndAfterAll {
@@ -63,10 +75,12 @@ class MethodVisitorSuite extends FunSuite with BeforeAndAfterAll {
 
     val m: MethodVisitor = new MethodVisitor
     m.parse(stream)
-    val callstack: Map[String, List[String]] = m.getMethodCallStack.map(x => (x._1, x._2
-      .toList)).toMap
-    val lines = m.getLineNumbersMap.toMap.values.flatMap(x => x.map(_.toInt)).toList.sorted.distinct
-    assert(lines === List(79, 101, 102, 103, 106, 108, 137, 138, 139, 141, 142, 144, 172, 187,
-      189, 191, 198, 203))
+    val lines = m.getListOflineNumbersMap.flatMap(x => x.flatMap(_._2)).map(_.toInt)
+      .toList.sorted.distinct
+
+    assert(lines === List(74, 75, 79, 101, 102, 103, 105, 106, 108, 109, 112, 113, 114, 115, 117,
+      118, 119, 120, 121, 123, 124, 125, 137, 138, 139, 141, 142, 144, 145, 148, 149, 150, 152,
+      153, 154, 155, 156, 158, 159, 160, 172, 174, 177, 182, 187, 188, 189, 190, 191, 198, 203,
+      204))
   }
 }

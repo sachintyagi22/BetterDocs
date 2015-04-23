@@ -31,7 +31,7 @@ import scala.util.Try
 case class IndexEntry(repoId: Int, file: String, tokens: Set[Token], score: Int)
 
 /* Since our tokens are fully qualified import names. */
-case class Token(importName: String, lineNumbers: immutable.SortedSet[Int])
+case class Token(importName: String, lineNumbers: immutable.Set[Int])
 
 trait BasicIndexer extends Serializable {
 
@@ -48,16 +48,27 @@ trait BasicIndexer extends Serializable {
     map.map{ case (key, value) => Token(key, value) }.toSet
   }
 }
-
-class JavaFileIndexer extends BasicIndexer {
-
-  /** For Java code based on trial and error 10 to 20 seems good. */
-  override def linesOfContext: Int = BetterDocsConfig.linesOfContext.toInt
+object JavaFileIndexerHelper {
+  val penalizeTestFiles = 5
 
   def fileNameToURL(repo: Repository, f: String) = {
     val (_, actualFileName) = f.splitAt(f.indexOf('/'))
     s"""${repo.login}/${repo.name}/blob/${repo.defaultBranch}$actualFileName"""
   }
+
+  def isTestFile(imports: Set[(String, String)]) = {
+    imports.exists(x => x._1.equalsIgnoreCase("org.junit"))
+  }
+
+  def tuple2ToImportString(importName: (String, String)): String = {
+    importName._1 + "." + importName._2
+  }
+}
+
+class JavaFileIndexer extends BasicIndexer {
+  import JavaFileIndexerHelper._
+  /** For Java code based on trial and error 10 to 20 seems good. */
+  override def linesOfContext: Int = BetterDocsConfig.linesOfContext.toInt
 
   override def generateTokens(files: Map[String, String], excludePackages: List[String],
     repo: Option[Repository]): Set[IndexEntry] = {
@@ -69,7 +80,9 @@ class JavaFileIndexer extends BasicIndexer {
       val imports = extractImports(fileContent, excludePackages)
       val fullGithubURL = fileNameToURL(r, fileName)
       // Penalize score of test files.
-      val score = if (isTestFile(imports)) r.stargazersCount / 3 else r.stargazersCount
+      val score = if (isTestFile(imports)) {
+        r.stargazersCount / penalizeTestFiles
+      } else r.stargazersCount
       extractTokensWRTImports(imports, fileContent).foreach { x =>
        x.map { y =>
           val FQCN = tuple2ToImportString(y._2)
@@ -78,35 +91,10 @@ class JavaFileIndexer extends BasicIndexer {
           tokenMap += ((FQCN, oldValue ++ List(y._1)))
         }
         indexEntries = indexEntries + IndexEntry(r.id, fullGithubURL, mapToTokens(tokenMap), score)
-        //  tokens = tokens ++ List(Token(fullGithubURL, x.map(z => z._2._1 + "." + z._2
-        //  ._2), x.head._1, score))
         tokenMap.clear()
       }
-
-      Try(extractTokensASTParser(imports, fileContent, fileName)).toOption.foreach{ x =>
-        indexEntries = indexEntries + IndexEntry(r.id, fullGithubURL, x, score)
-      }
-
     }
     indexEntries
-  }
-
-  private def tuple2ToImportString(importName: (String, String)): String = {
-    importName._1 + "." + importName._2
-  }
-
-  private def isTestFile(imports: Set[(String, String)]) = {
-    imports.exists(x => x._1.equalsIgnoreCase("org.junit"))
-  }
-
-  private def extractTokensASTParser(imports: Set[(String, String)],
-      fileContent: String, fileName: String): Set[Token] = {
-    val parser = new MethodVisitor()
-    parser.parse(fileContent, fileName)
-    val importsSet = imports.map(tuple2ToImportString)
-    import scala.collection.JavaConversions._
-    parser.getLineNumbersMap.map(x => Token(x._1, immutable.SortedSet[Int]() ++ x._2.map(_.toInt)))
-      .filter(x => importsSet.contains(x.importName)).toSet
   }
 
   private def extractImports(java: String, packages: List[String]) = java.split("\n")

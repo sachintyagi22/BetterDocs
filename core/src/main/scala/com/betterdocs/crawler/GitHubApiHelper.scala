@@ -26,6 +26,7 @@ import com.betterdocs.logging.Logger
 import org.apache.commons.httpclient.HttpClient
 import org.apache.commons.httpclient.methods.GetMethod
 import org.apache.commons.io.FileUtils
+import org.eclipse.jgit.api.CloneCommand
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
@@ -104,7 +105,7 @@ object GitHubApiHelper extends Logger {
    * Find the number of repo pages in an organisation.
    */
   def repoPagesCount(url: String) = executeMethod(url, token).getResponseHeader("Link").
-    getElements.toList(1).getValue.substring(0, 2).toInt
+    getElements.toList(1).getValue.substring(0, 2).replaceAll("\\W+", "").toInt
 
   /*
      * Helper for accessing Java - Apache Http client. 
@@ -128,7 +129,7 @@ object GitHubApiHelper extends Logger {
     val method = new GetMethod(url)
     method.setDoAuthentication(true)
     // Please add the oauth token instead of <token> here. Or github may give 403/401 as response.
-    method.addRequestHeader("Authorization", s"token ${token}")
+    method.addRequestHeader("Authorization", s"token $token")
     log.debug(s"using token $token")
     client.executeMethod(method)
     val requestLimitRemaining = method.getResponseHeader("X-RateLimit-Remaining").getValue
@@ -152,6 +153,20 @@ object GitHubApiHelper extends Logger {
         None
     }
   }
+
+   def cloneRepository(url: String, targetDir: String): Unit = {
+    try {
+      val file = new File(targetDir)
+      val clone = new CloneCommand()
+      clone.setBare(false)
+      clone.setCloneAllBranches(true)
+      clone.setDirectory(file).setURI(url)
+      clone.call()
+    } catch {
+      case x: Throwable =>
+        log.error(s"Failed to download $url", x)
+    }
+  }
 }
 
 object GitHubRepoCrawlerApp {
@@ -166,7 +181,7 @@ object GitHubRepoCrawlerApp {
         log.info(s"Downloading repo since : $since")
         repoDownloader ! DownloadPublicRepos(since)
 
-      case Failure(ex: NumberFormatException) if (!args(0).isEmpty) =>
+      case Failure(ex: NumberFormatException) if !args(0).isEmpty =>
         log.info(s"Downloading repo for organisation:" + args(0))
         repoDownloader ! DownloadOrganisationRepos(args(0))
 

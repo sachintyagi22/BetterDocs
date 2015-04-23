@@ -15,32 +15,35 @@
  * limitations under the License.
  */
 
-package com.betterdocs.parser
+package com.imaginea.betterdocs;
 
-import com.betterdocs.crawler.Repository
-import com.betterdocs.logging.Logger
+import java.util.List;
 
-import scala.util.Try
-import scala.util.parsing.combinator._
+public class CodeInfo {
+    private List<Integer> lineNumbers;
+    private String contents;
+    private String fileName;
 
-object RepoFileNameParser extends RegexParsers with Logger {
-
-  def apply(input: String): Option[Repository] = Try(parseAll(repo, input)).toOption.flatMap {
-    case Success(result, _) => Some(result)
-    case failure: NoSuccess => log.error(failure.msg)
-      None
-  }
-
-  def repo: Parser[Repository] = {
-    "(|.*/)repo".r ~> rep(tilde ~> name) ^^ {
-      x => val y = x.toArray
-        val branch = if (y.size == 7) y(5) else "master"
-        Repository(y(0), y(2).toInt, y(1), false, "Java", branch,
-          x.last.trim.stripSuffix(".zip").toInt)
+    public List<Integer> getLineNumbers() {
+        return this.lineNumbers;
     }
-  }
 
-  def name: Parser[String] = """[^~]+""".r
+    public String getContents() {
+        return this.contents;
+    }
 
-  def tilde: Parser[String] = """~""".r
+    public String getFileName() {
+        return fileName;
+    }
+
+    public CodeInfo(String fileName, List<Integer> lineNumbers, String contents) {
+        this.fileName = fileName;
+        this.lineNumbers = lineNumbers;
+        this.contents = contents;
+    }
+
+    public String toString() {
+        return fileName.substring(fileName.lastIndexOf("/") + 1);
+    }
 }
+

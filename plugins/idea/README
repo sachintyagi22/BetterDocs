@@ -1,0 +1,19 @@
+To make intellij plugin for betterdocs recognized as a plugin project in idea, follow these steps.
+
+Step 1. Import Betterdocs as Top level project into intelliJ.
+
+* Install scala plugin, incase it is not already installed.
+
+* Import it using SBT, and in SBT global settings add JVM params -Didea.lib="path/to/intellij/lib".
+
+Step 2. Make plugin project recognized as Plugin Module in intellij.
+
+1) Open .idea/modules/ideaPlugin.iml
+
+2) Change toplevel '<module .* type ="JAVA_MODULE" />' change type to "PLUGIN_MODULE".
+
+3) Open Project Structure and select ideaPlugin module. 
+
+    * In plugin deployment tab Specify path to plugin.xml (NOTE: Click NO to cleanup META_INF dialogue box to prevent accidently deleting plugin.xml file, that way it will use existing plugin.xml file.)
+
+    * In Dependencies tab specify intellij Idea SDK.
