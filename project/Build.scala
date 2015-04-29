@@ -73,7 +73,7 @@ object BetterDocsBuild extends Build {
      // retrieveManaged := true, // enable this if we need jars of dependencies.
       crossPaths := false,
       fork := true,
-      javaOptions += "-Xmx3072m" // For running spark job.
+      javaOptions += "-Xmx3072m", // For running spark job.
       javacOptions ++= Seq("-source", "1.6"),
       javaOptions += "-Xmx2048m",
       javaOptions += "-XX:+HeapDumpOnOutOfMemoryError"
@@ -97,9 +97,10 @@ object Dependencies {
   val httpClient = "commons-httpclient" % "commons-httpclient" % "3.1"
   val config = "com.typesafe" % "config" % "1.2.1"
   val jgit = "org.eclipse.jgit" % "org.eclipse.jgit" % "3.7.0.201502260915-r"
+  val graphx =  "org.apache.spark" % "spark-graphx_2.11" % "1.2.1"
 
   val betterDocs = Seq(spark, parserCombinator, scalaTest, slf4j, javaparser, json4s, config,
-    json4sJackson, jgit, mllib)
+    json4sJackson, jgit, mllib, graphx)
 
 
   val ideaPlugin = Seq()

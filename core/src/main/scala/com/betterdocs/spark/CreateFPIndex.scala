@@ -47,6 +47,10 @@ import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.write
 import java.util.regex.Pattern
 import java.util.regex.Matcher
+import org.apache.spark.graphx.Graph
+import org.apache.spark.graphx.Edge
+
+
 
 object CreateFPIndex {
   
@@ -62,6 +66,7 @@ object CreateFPIndex {
   val repoDeclaredPath = s"/$baseDir/repodetails/declared/"
   val repoUsedPath = s"/$baseDir/repodetails/used/"
   val repoDependencyPath = s"/$baseDir/dependency/"
+  val graphPath = s"/$baseDir/graph/"
 
   def main(args: Array[String]): Unit = {
 
@@ -76,16 +81,57 @@ object CreateFPIndex {
       .set("spark.driver.memory", "3g")
 
     val sc = new SparkContext(conf)
+    
 
     //Read repos from locally stored RDDs if available else from zips **/
     val repos = readOrSaveRepos(sc)
-
     // Output the java files from repos (plus other info) in the format that can be bulk uploaded to ES.
     if (args.contains("file")) { saveFilesForES(repos) }
 
     val repoDetails = readOrSaveRepoDetails(sc, repos)
 
     val transactions = repoDetails.flatMap { x => x._4 }.filter { x => x._2.size() > transactionSize }
+    
+    import collection.JavaConversions._
+    import org.apache.spark.SparkContext._
+    //val tuplesRDD = transactions.map(f => f._2 zip f._2.tail).map(f=> f.map(x => (x._1, x._2, 1)))
+    
+    
+    val tuplesRDD = transactions.map(f => f._2 zip f._2.tail).map(f=> f.map(x => ((x._1, x._2), 1))).flatMap(f=>f)
+
+    val vertices = transactions.flatMap(f=>f._2).distinct().zipWithUniqueId()
+    val map = vertices.collectAsMap
+    
+    val edges = tuplesRDD.reduceByKey(_+_).map(f=> Edge(map.get(f._1._1).getOrElse(0), map.get(f._1._2).getOrElse(0), f._2))
+    val callGraph = Graph(vertices.map(f=>(f._2, (f._1,0))), edges, ("Null",0))
+    callGraph.vertices.saveAsTextFile(graphPath)
+    
+    val filter = "java.util.concurrent.Executor"
+    
+    val subgraph = callGraph.ops.pregel(0)(vprog = (id, attr, msg) => {
+      //println(">>>>>>> Recieved msg " + msg + " at " + vertName._1)
+      (attr._1, msg)
+    }, sendMsg = (triplet) => {
+      if((triplet.srcAttr._1.contains(filter) && triplet.srcAttr._2 == 0) || (triplet.srcAttr._2 > triplet.dstAttr._2)){
+        println(">>>>>>>>>>>>>>>>> Sending message from " + triplet.srcAttr._1 + " to " + triplet.dstAttr._1)
+        Iterator((triplet.dstId, 1))
+      }else{
+        Iterator.empty
+      }
+      Iterator.empty
+    }, mergeMsg = (a,b)=> {
+      a+b
+    })
+
+    
+    println(">>>>>>>>>> \n\n\n" + subgraph.triplets.collect.mkString("\n"))
+    
+    
+    /*callGraph.subgraph(epred = (eTriplet) => {
+      true
+    }, vpred = (id, attr)=>  {
+      true
+    })*/
 
     //Create/load/store vertical views of transactions. Needed for getting file info for patterns.
     val verticalDataMap = readOrSaveVerticalData(sc, transactions, minSupport)
@@ -226,11 +272,11 @@ object CreateFPIndex {
              ))
     }
     
-    val dependency = repoDetails.map(f => {
+    /*val dependency = repoDetails.map(f => {
       (f._1, f._3.map(d =>{
         repoDetails.filter(f=> f._2.contains(d._1)).map(f=> f._1).collect().headOption.getOrElse("")
       }).toSet)
-    }).saveAsTextFile(repoDependencyPath)
+    }).saveAsTextFile(repoDependencyPath)*/
     
     //Declared packages used enough elsewhere
     //val declaredPackages = repoDetails.map(f => (f._1, f._2.toArray().toSet.filter { x => fi.exists { y => y.toString().equals(x) }})).map(f => repoPkgToString(f._1, f._2))
@@ -319,3 +365,8 @@ object CreateFPIndex {
 }
 
 
+object Test{
+  def main(args: Array[String]): Unit = {
+    println(("b", "a").equals(("a", "b")))
+  }
+}
