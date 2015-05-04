@@ -25,20 +25,26 @@ import scala.collection.mutable.HashMap
 import com.betterdocs.parser.JavaFileParser
 import java.util.HashSet
 import scala.collection.mutable.ListBuffer
+import scala.collection.mutable
+import collection.JavaConversions._
+
+case class RepoDetails(fullRepoName: String, score: Int, orgsName: String, pckgDeclCountMap: Map[String, Int], pckgUsedCountMap: Map[String, Int])
+case class ClassMethodDetails(methodUrl: String, callStack: List[String], className: String, usedPckgs: Set[String], pckg: String, isTest: Boolean)
 
 trait TransactionGenerator extends Serializable {
  
   def generateTransactions(files: Map[String, String], excludePackages: List[String], score: Int,
-      orgsName: String): (String, Map[String,Int], Map[String,Int], java.util.HashMap[String, java.util.List[String]])
+      orgsName: String): (RepoDetails, mutable.Set[ClassMethodDetails])
 
 }
 
 class JavaMethodTransactionGenerator extends TransactionGenerator {
-
+  
   override def generateTransactions(files: Map[String, String], excludePackages: List[String],
-      score: Int, orgsName: String): (String, Map[String,Int], Map[String,Int], java.util.HashMap[String, java.util.List[String]]) = {
+      score: Int, orgsName: String): (RepoDetails, mutable.Set[ClassMethodDetails]) = {
 
-    var methodCallMap = new java.util.HashMap[String, java.util.List[String]]()
+    //var methodCallMap = new java.util.HashMap[String, java.util.List[String]]()
+    var methodList = mutable.Set[ClassMethodDetails]();
     /*var repoDeclaredPackages = new java.util.HashSet[String]()
     var repoUsedPackages = new java.util.HashSet[String]()*/
     
@@ -59,20 +65,24 @@ class JavaMethodTransactionGenerator extends TransactionGenerator {
       parser.parse(fileContent, fullGithubURL, score) 
       
       val thisMap = parser.getMethodCallStack;
+      for(entry <- thisMap){
+        methodList.add(ClassMethodDetails(entry._1, entry._2.toList, parser.getClazzName , parser.gedUsedPackages.toSet, parser.getDeclaredPackage, parser.isTestClass))        
+      }
       
-      methodCallMap.putAll(thisMap)
+      //methodCallMap.putAll(thisMap)
       
       fullRepoName = s"$orgsName/$actualRepoName"
       
-      repoUsedPackgesList = List.concat(repoUsedPackgesList, parser.gedUsedPackages.toArray(Array("")).toSeq)
-      repoDeclaredPackgesList = List.concat(repoDeclaredPackgesList, List(parser.getDeclaredPackage))
+      repoUsedPackgesList = List.concat(repoUsedPackgesList, parser.gedUsedPackages.toArray(Array("")).toSeq).filter(p=>p!=null)
+      repoDeclaredPackgesList = List.concat(repoDeclaredPackgesList, List(parser.getDeclaredPackage)).filter(p=>p!=null)
       
     }
     
     val pckgUsedCountMap = repoUsedPackgesList.map { x => (x, 1L) }.groupBy(f=> f._1).mapValues(f=>f.size).map(identity)
     val pckgDeclCountMap = repoDeclaredPackgesList.map { x => (x, 1L) }.groupBy(f=> f._1).mapValues(f=>f.size).map(identity)
     
-    (fullRepoName, pckgDeclCountMap, pckgUsedCountMap, methodCallMap)
+    
+    (RepoDetails(fullRepoName, score, orgsName, pckgDeclCountMap, pckgUsedCountMap), methodList)
   }
 
 }

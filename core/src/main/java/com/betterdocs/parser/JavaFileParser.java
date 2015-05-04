@@ -1,7 +1,6 @@
 package com.betterdocs.parser;
 
 import java.io.ByteArrayInputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -9,7 +8,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -201,7 +199,7 @@ public class JavaFileParser extends VoidVisitorAdapter {
 
 		String call = fullscope + "." + name;
 		boolean isArrayCall = call.contains("[") && call.contains("]");
-		if (!isArrayCall) {
+		if (!isArrayCall && (stack.size() == 0 || !stack.get(stack.size()-1).equals(call))) {
 			stack.add(call);
 		}
 		
@@ -308,6 +306,21 @@ public class JavaFileParser extends VoidVisitorAdapter {
 		}
 		return result;
 	}
+	
+	public String getClazzName(){ 
+		return className;
+	}
+	
+	public Boolean isTestClass(){
+		Boolean isTest = false;
+		for(String imprt : importDeclMap.values()){
+			if(imprt.contains("org.junit.")) isTest = true;
+		}
+		
+		return isTest;
+	}
+	
+	
 
 	/**
 	 * **** Remove 
@@ -335,6 +348,10 @@ public class JavaFileParser extends VoidVisitorAdapter {
 		
 		System.out.println(m.gedUsedPackages());
 		System.out.println(m.getDeclaredPackage());*/
+		
+		ArrayList l = new ArrayList<String>();
+		l.add("a");
+		System.out.println(l.get(l.size()-1));
 		
 		String s = "org.apache.synapse.config.Entry.isDynamic";
 		Pattern p = Pattern.compile("([a-zA-Z]+.*)\\.([a-zA-Z]*)", Pattern.CASE_INSENSITIVE);

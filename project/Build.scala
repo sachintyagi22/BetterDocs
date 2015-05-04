@@ -69,7 +69,12 @@ object BetterDocsBuild extends Build {
       version := "0.0.1-SNAPSHOT",
       scalaVersion := "2.11.6",
       scalacOptions := scalacOptionsList,
-      resolvers += "apache special" at "https://repository.apache.org/content/repositories/orgapachespark-1083/",
+      resolvers ++= Seq(
+	"apache special" at "https://repository.apache.org/content/repositories/orgapachespark-1083/",
+	"conjars.org" at "http://conjars.org/repo",
+	"sonatype-oss" at "http://oss.sonatype.org/content/repositories/snapshots",
+	"Job Server Bintray" at "https://dl.bintray.com/spark-jobserver/maven"
+	),
      // retrieveManaged := true, // enable this if we need jars of dependencies.
       crossPaths := false,
       fork := true,
@@ -85,9 +90,9 @@ object BetterDocsBuild extends Build {
 object Dependencies {
 
   val spark = "org.apache.spark" %% "spark-core" % "1.3.1" // % "provided" Provided makes it not run through sbt run.
-  val parserCombinator = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
-  val scalaTest = "org.scalatest" %% "scalatest" % "2.2.4" % "test" 
-  val slf4j = "org.slf4j" % "slf4j-log4j12" % "1.7.10"
+  val parserCombinator = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3" 
+  val scalaTest = "org.scalatest" %% "scalatest" % "2.2.4" % "test"
+  val slf4j = "org.slf4j" % "slf4j-log4j12" % "1.7.10" 
   val javaparser = "com.github.javaparser" % "javaparser-core" % "2.0.0"
 
   val mllib = "org.apache.spark"  % "spark-mllib_2.11" % "1.2.1"
@@ -97,10 +102,12 @@ object Dependencies {
   val httpClient = "commons-httpclient" % "commons-httpclient" % "3.1"
   val config = "com.typesafe" % "config" % "1.2.1"
   val jgit = "org.eclipse.jgit" % "org.eclipse.jgit" % "3.7.0.201502260915-r"
-  val graphx =  "org.apache.spark" % "spark-graphx_2.11" % "1.2.1"
+  val graphx =  "org.apache.spark" % "spark-graphx_2.11" % "1.2.1" 
+  val esSpark = "org.elasticsearch" % "elasticsearch-spark_2.11" % "2.1.0.Beta4" 
+  val jobserver = "spark.jobserver" % "job-server-api" % "0.5.0" % "provided"
 
   val betterDocs = Seq(spark, parserCombinator, scalaTest, slf4j, javaparser, json4s, config,
-    json4sJackson, jgit, mllib, graphx)
+    json4sJackson, jgit, mllib, graphx, esSpark, jobserver)
 
 
   val ideaPlugin = Seq()
