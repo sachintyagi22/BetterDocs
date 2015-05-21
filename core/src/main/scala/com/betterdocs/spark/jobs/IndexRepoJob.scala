@@ -32,6 +32,8 @@ import scala.util.Try
 import com.betterdocs.indexer.JavaMethodTransactionGenerator
 import scala.collection.JavaConversions.mapAsScalaMap
 import org.elasticsearch.spark._
+import com.betterdocs.parser.RepoFileNameParser
+import com.betterdocs.crawler.Repository
 
 object IndexRepoJob extends SparkJob with NamedRddSupport {
 
@@ -48,21 +50,39 @@ object IndexRepoJob extends SparkJob with NamedRddSupport {
     //Read repos from locally stored RDDs if available else from zips **/
     val repos = readOrSaveRepos(sc, githubPath)
     val repoDetails = repos.map { f =>
-      val (files, score, orgsName) = f
-      val trns = new JavaMethodTransactionGenerator().generateTransactions(files.toMap, List(), score.getOrElse(0), orgsName.getOrElse("ErrorRecord"))
+      val (files, score, orgsName, repo) = f
+      val trns = new JavaMethodTransactionGenerator().generateTransactions(files.toMap, List(), score.getOrElse(0), orgsName.getOrElse("ErrorRecord"), repo)
       //(trns._1, trns._2, trns._3, trns._4, score.getOrElse(0), orgsName.getOrElse("N/A"))
       println("Parsed: "+ trns._1.fullRepoName)
       trns
     }
 
-    repoDetails.map(f => f._1).map { x => Map("repoName" -> x.fullRepoName, "orgsName" -> x.orgsName, "score" -> x.score, "declaredPckgs" -> x.pckgDeclCountMap.map(f=> Map("pckg"->f._1, "count"->f._2)), "usedPckgs" -> x.pckgUsedCountMap.map(f=> Map("pckg"->f._1, "count"->f._2))) }.saveToEs("parsed/repos")
-    repoDetails.flatMap(f => f._2).filter { f => {/*println(f.callStack.size);*/f.callStack.size > transactionSize} }.map { x => Map("method" -> x.methodUrl, "class" -> x.className, "events" -> x.callStack, "istest" -> x.isTest, "pckg" -> x.pckg, "usedPckgs" -> x.usedPckgs) }.saveToEs("parsed/transactions")
-    //val transactions = repoDetails.flatMap { x => x._4 }.filter { x => x._2.size() > transactionSize }
-    //transactions.map(f=> Map("method"->f._1, "events"-> f._2)).saveToEs("parsed/transactions")
+    import com.betterdocs.indexer.JavaFileIndexerHelper.fileNameToURL              
+    //Store java file contents
+    repos.flatMap(f => f._1.map(x => (f._4, x._1, x._2)))
+      .filter(f => !f._1.isEmpty)
+      .map(f => Map("repoId" -> f._1.get.id, "repoName" -> f._1.get.name, "className" -> f._2, "fileUrl" -> fileNameToURL(f._1.get, f._2), "content" -> f._3))
+      .saveToEs("parsed/content")
+    
+    //Store details about repositories
+    repoDetails.map(f => f._1).map { 
+      x => Map("repoName" -> x.fullRepoName, "orgsName" -> x.orgsName, "score" -> x.score, 
+          "declaredPckgs" -> x.pckgDeclCountMap.map(f=> Map("pckg"->f._1, "count"->f._2)), 
+          "usedPckgs" -> x.pckgUsedCountMap.map(f=> Map("pckg"->f._1, "count"->f._2))) 
+          }.saveToEs("parsed/repos")
+
+    //Store parsed transaction      
+    repoDetails.flatMap(f => f._2).filter { 
+            f => f.callStack.size > transactionSize}.map { 
+              x => Map("method" -> x.methodUrl, "parent"-> x.methodUrl.split("#").apply(0),  "class" -> x.className, "events" -> x.callStack, 
+                  "istest" -> x.isTest, "pckg" -> x.pckg, "usedPckgs" -> x.usedPckgs) }.saveToEs("parsed/transactions", Map("es.mapping.parent"-> "parent"))
+
+    
+                  
     "Done"
   }
 
-  def readOrSaveRepos(sc: SparkContext, githubPath: String): RDD[(ArrayBuffer[(String, String)], Option[Int], Option[String])] = {
+  def readOrSaveRepos(sc: SparkContext, githubPath: String): RDD[(ArrayBuffer[(String, String)], Option[Int], Option[String], Option[Repository])] = {
     val repos = sc.binaryFiles(githubPath).map { x =>
       val zipFileName = x._1.stripPrefix("file:")
       println("Reading Zip:  " + zipFileName)
@@ -71,7 +91,7 @@ object IndexRepoJob extends SparkJob with NamedRddSupport {
       val orgsName = getOrgsName(zipFileName)
       val repoName = getRepoName(zipFileName)
       // Ignoring exclude packages.
-      (ZipBasicParser.readFilesAndPackages(z)._1, score, orgsName)
+      (ZipBasicParser.readFilesAndPackages(z)._1, score, orgsName, RepoFileNameParser(zipFileName))
     }
     repos
   }

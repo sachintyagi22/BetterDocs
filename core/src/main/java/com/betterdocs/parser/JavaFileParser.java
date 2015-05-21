@@ -314,7 +314,10 @@ public class JavaFileParser extends VoidVisitorAdapter {
 	public Boolean isTestClass(){
 		Boolean isTest = false;
 		for(String imprt : importDeclMap.values()){
-			if(imprt.contains("org.junit.")) isTest = true;
+			if(imprt.contains("junit.")) isTest = true;
+		}
+		if(!isTest && declaredPackage.contains(".test")){
+			isTest = true;
 		}
 		
 		return isTest;

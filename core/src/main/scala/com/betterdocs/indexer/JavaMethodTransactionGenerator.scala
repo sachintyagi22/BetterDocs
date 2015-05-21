@@ -27,6 +27,8 @@ import java.util.HashSet
 import scala.collection.mutable.ListBuffer
 import scala.collection.mutable
 import collection.JavaConversions._
+import com.betterdocs.crawler.Repository
+import com.betterdocs.indexer.JavaFileIndexerHelper.fileNameToURL
 
 case class RepoDetails(fullRepoName: String, score: Int, orgsName: String, pckgDeclCountMap: Map[String, Int], pckgUsedCountMap: Map[String, Int])
 case class ClassMethodDetails(methodUrl: String, callStack: List[String], className: String, usedPckgs: Set[String], pckg: String, isTest: Boolean)
@@ -34,14 +36,14 @@ case class ClassMethodDetails(methodUrl: String, callStack: List[String], classN
 trait TransactionGenerator extends Serializable {
  
   def generateTransactions(files: Map[String, String], excludePackages: List[String], score: Int,
-      orgsName: String): (RepoDetails, mutable.Set[ClassMethodDetails])
+      orgsName: String, repo: Option[Repository]): (RepoDetails, mutable.Set[ClassMethodDetails])
 
 }
 
 class JavaMethodTransactionGenerator extends TransactionGenerator {
   
   override def generateTransactions(files: Map[String, String], excludePackages: List[String],
-      score: Int, orgsName: String): (RepoDetails, mutable.Set[ClassMethodDetails]) = {
+      score: Int, orgsName: String, repo: Option[Repository]): (RepoDetails, mutable.Set[ClassMethodDetails]) = {
 
     //var methodCallMap = new java.util.HashMap[String, java.util.List[String]]()
     var methodList = mutable.Set[ClassMethodDetails]();
@@ -54,12 +56,15 @@ class JavaMethodTransactionGenerator extends TransactionGenerator {
     
     for (file <- files) {
       val (fileName, fileContent) = file
-      val (repoName, actualFileName) = fileName.splitAt(fileName.indexOf('/'))
+      /**val (repoName, actualFileName) = fileName.splitAt(fileName.indexOf('/'))
       val (actualRepoName, branchName) = repoName.splitAt(fileName.indexOf('-'))
       val fullGithubURL = s"""http://github.com/$orgsName/$actualRepoName/blob/${
         branchName
           .stripPrefix("-")
-      }$actualFileName"""
+      }$actualFileName""" **/
+      
+        
+      val fullGithubURL  = fileNameToURL(repo.getOrElse(Repository.invalid), fileName)
       
       val parser = new JavaFileParser()
       parser.parse(fileContent, fullGithubURL, score) 
@@ -71,7 +76,9 @@ class JavaMethodTransactionGenerator extends TransactionGenerator {
       
       //methodCallMap.putAll(thisMap)
       
-      fullRepoName = s"$orgsName/$actualRepoName"
+      //fullRepoName = s"$orgsName/$actualRepoName"
+      val name = repo.getOrElse(Repository.invalid).name
+      fullRepoName = s"$orgsName/$name"
       
       repoUsedPackgesList = List.concat(repoUsedPackgesList, parser.gedUsedPackages.toArray(Array("")).toSeq).filter(p=>p!=null)
       repoDeclaredPackgesList = List.concat(repoDeclaredPackgesList, List(parser.getDeclaredPackage)).filter(p=>p!=null)
