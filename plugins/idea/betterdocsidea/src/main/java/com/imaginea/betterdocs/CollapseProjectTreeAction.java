@@ -17,29 +17,26 @@
 
 package com.imaginea.betterdocs;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.ui.Messages;
-import javax.swing.JSplitPane;
+import javax.swing.JTree;
 
-public class EditorToggleAction extends AnAction {
-    private JSplitPane jSplitPane;
+public class CollapseProjectTreeAction extends AnAction {
+    private WindowObjects windowObjects = WindowObjects.getInstance();
+    private static final String COLLAPSE_TREE = "Collapse Tree";
 
-    public void setjSplitPane(JSplitPane jSplitPane) {
-        this.jSplitPane = jSplitPane;
-    }
-
-    public EditorToggleAction() {
-        super("Move", "Move", Messages.getQuestionIcon());
+    public CollapseProjectTreeAction() {
+        super(COLLAPSE_TREE, COLLAPSE_TREE, AllIcons.General.CollapseAll);
     }
 
     @Override
-    public void actionPerformed(AnActionEvent anActionEvent) {
-        double location = (double) jSplitPane.getDividerLocation();
-        if (location / jSplitPane.getWidth() < 0.5) {
-            jSplitPane.setDividerLocation(0.3);
-        } else {
-            jSplitPane.setDividerLocation(0.08);
+    public final void actionPerformed(final AnActionEvent anActionEvent) {
+        JTree jTree = windowObjects.getjTree();
+
+        for (int i = 0; i < jTree.getRowCount(); i++) {
+            jTree.collapsePath(jTree.getPathForRow(i));
         }
+        jTree.updateUI();
     }
 }

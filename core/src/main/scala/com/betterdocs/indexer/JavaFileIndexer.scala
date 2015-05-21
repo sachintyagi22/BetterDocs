@@ -51,12 +51,12 @@ trait BasicIndexer extends Serializable {
 object JavaFileIndexerHelper {
   val penalizeTestFiles = 5
 
-  def fileNameToURL(repo: Repository, f: String) = {
+  def fileNameToURL(repo: Repository, f: String): String = {
     val (_, actualFileName) = f.splitAt(f.indexOf('/'))
     s"""${repo.login}/${repo.name}/blob/${repo.defaultBranch}$actualFileName"""
   }
 
-  def isTestFile(imports: Set[(String, String)]) = {
+  def isTestFile(imports: Set[(String, String)]): Boolean = {
     imports.exists(x => x._1.equalsIgnoreCase("org.junit"))
   }
 

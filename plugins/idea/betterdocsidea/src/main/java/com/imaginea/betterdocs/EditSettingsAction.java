@@ -17,38 +17,24 @@
 
 package com.imaginea.betterdocs;
 
-public class ESFileContent {
-    public final Query getQuery() {
-        return query;
+import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.AnAction;
+import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.actionSystem.PlatformDataKeys;
+import com.intellij.openapi.options.ShowSettingsUtil;
+
+public class EditSettingsAction extends AnAction {
+
+    private static final String OPEN_SETTINGS = "Open Settings";
+
+    public EditSettingsAction() {
+        super(OPEN_SETTINGS, OPEN_SETTINGS, AllIcons.General.Settings);
     }
 
-    private Query query;
-
-    public static class Query {
-        private Term term;
-
-        public final void setTerm(final Term pterm) {
-            this.term = pterm;
-        }
-
-        public final Term getTerm() {
-            return term;
-        }
-    }
-
-    public static class Term {
-        private String fileName;
-
-        public final void setFileName(final String pfileName) {
-            this.fileName = pfileName;
-        }
-
-        public final String getFileName() {
-            return fileName;
-        }
-    }
-
-    public final void setQuery(final Query pquery) {
-        this.query = pquery;
+    @Override
+    public final void actionPerformed(final AnActionEvent anActionEvent) {
+        ShowSettingsUtil.getInstance().showSettingsDialog(
+                anActionEvent.getData(PlatformDataKeys.PROJECT_CONTEXT),
+                SettingsPanel.BETTER_DOCS_SETTINGS);
     }
 }

@@ -17,38 +17,25 @@
 
 package com.imaginea.betterdocs;
 
-public class ESFileContent {
-    public final Query getQuery() {
-        return query;
+import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.AnAction;
+import com.intellij.openapi.actionSystem.AnActionEvent;
+import javax.swing.JTree;
+
+public class ExpandProjectTreeAction extends AnAction {
+    private WindowObjects windowObjects = WindowObjects.getInstance();
+    private static final String EXPAND_TREE = "Expand Tree";
+
+    public ExpandProjectTreeAction() {
+        super(EXPAND_TREE, EXPAND_TREE, AllIcons.General.ExpandAll);
     }
 
-    private Query query;
-
-    public static class Query {
-        private Term term;
-
-        public final void setTerm(final Term pterm) {
-            this.term = pterm;
+    @Override
+    public final void actionPerformed(final AnActionEvent anActionEvent) {
+        JTree jTree = windowObjects.getjTree();
+        for (int i = 0; i < jTree.getRowCount(); i++) {
+            jTree.expandRow(i);
         }
-
-        public final Term getTerm() {
-            return term;
-        }
-    }
-
-    public static class Term {
-        private String fileName;
-
-        public final void setFileName(final String pfileName) {
-            this.fileName = pfileName;
-        }
-
-        public final String getFileName() {
-            return fileName;
-        }
-    }
-
-    public final void setQuery(final Query pquery) {
-        this.query = pquery;
+        jTree.updateUI();
     }
 }

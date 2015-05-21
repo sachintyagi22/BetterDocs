@@ -19,29 +19,20 @@ package com.betterdocs.spark
 
 import com.betterdocs.configuration.BetterDocsConfig
 import com.betterdocs.crawler.Repository
-import com.betterdocs.indexer.JavaASTBasedIndexer
+import com.betterdocs.parser.MethodVisitorHelper._
 import com.betterdocs.spark.SparkIndexJobHelper._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.collection.mutable.ArrayBuffer
 
-object CreateIndexJob {
-
-  case class SourceFile(repoId: Int, fileName: String, fileContent: String)
-
-  def mapToSourceFiles(repo: Option[Repository],
-                       map: ArrayBuffer[(String, String)]): Set[SourceFile] = {
-    val repo2 = repo.getOrElse(Repository.invalid)
-    import com.betterdocs.indexer.JavaFileIndexerHelper._
-
-    map.map(x => SourceFile(repo2.id, fileNameToURL(repo2, x._1), x._2)).toSet
-  }
+object CreateIndexJobForMethods {
 
   def main(args: Array[String]): Unit = {
     val conf = new SparkConf()
       .setMaster(BetterDocsConfig.sparkMaster)
-      .setAppName("CreateIndexJob")
+      .setAppName("CreateIndexJobForMethods")
+      .set("spark.executor.memory", "2g")
 
     val sc: SparkContext = createSparkContext(conf)
 
@@ -51,12 +42,8 @@ object CreateIndexJob {
     // Create indexes for elastic search.
     zipFileExtractedRDD.map { f =>
       val (files, repo, packages) = f
-      (repo, new JavaASTBasedIndexer()
-        .generateTokens(files.toMap, packages, repo), mapToSourceFiles(repo, files))
-    }.flatMap { case (Some(a), b, c) =>
-      Seq(toJson(a, isToken = false), toJson(b, isToken = true), toJson(c, isToken = false))
-    case _ => Seq()
-    }.saveAsTextFile(BetterDocsConfig.sparkIndexOutput)
+      toJson(extractMethodsAndLineNumbers(files.toMap, repo).toSet, true)
+    }.saveAsTextFile(BetterDocsConfig.sparkMethodsOutput)
 
   }
 }

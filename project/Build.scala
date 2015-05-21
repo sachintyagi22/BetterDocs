@@ -33,7 +33,10 @@ object BetterDocsBuild extends Build {
   lazy val core = Project("core", file("core"), settings = coreSettings)
 
   lazy val ideaPlugin = Project("ideaPlugin", file("plugins/idea/betterdocsidea"), settings =
-    pluginSettings)
+    pluginSettings ++ findbugsSettings ++ codequality.CodeQualityPlugin.Settings)
+
+  lazy val pluginTests = Project("pluginTests", file("plugins/idea/pluginTests"), settings =
+    pluginTestSettings) dependsOn ideaPlugin
 
   val scalacOptionsList = Seq("-encoding", "UTF-8", "-unchecked", "-optimize", "-deprecation",
     "-feature")
@@ -43,15 +46,16 @@ object BetterDocsBuild extends Build {
 
   def aggregatedProjects: Seq[ProjectReference] = {
     if (ideaLib.isDefined) {
-      Seq(core, ideaPlugin)
+      Seq(core, ideaPlugin, pluginTests)
     } else {
-      println("""[warn] Plugin project disabled. To enable append -Didea.lib="idea/lib" to JVM params in SBT settings or while invoking sbt (incase it is called from commandline.). """)
+      println("""[warn] Plugin project disabled. To enable append -Didea.lib="idea/lib" to JVM 
+        params in SBT settings or while invoking sbt (incase it is called from commandline.). """)
       Seq(core)
     }
   }
 
   def pluginSettings = betterDocsSettings ++ (if (!ideaLib.isDefined) Seq() else 
-    findbugsSettings ++ codequality.CodeQualityPlugin.Settings ++ cpdSettings ++ Seq(
+    cpdSettings ++ Seq(
     name := "BetterDocsIdeaPlugin",
     libraryDependencies ++= Dependencies.ideaPlugin,
     autoScalaLibrary := false,
@@ -60,13 +64,20 @@ object BetterDocsBuild extends Build {
     unmanagedBase := file(ideaLib.get)
     ))
 
+  def pluginTestSettings = pluginSettings ++ Seq (
+    name := "plugin-test",
+    libraryDependencies ++= Dependencies.ideaPluginTest,
+    autoScalaLibrary := true,
+    scalaVersion := "2.11.6"
+    )
+
   def coreSettings = betterDocsSettings ++ Seq(libraryDependencies ++= Dependencies.betterDocs)
 
   def betterDocsSettings =
     Defaults.coreDefaultSettings ++ Seq (
       name := "BetterDocs",
       organization := "com.betterdocs",
-      version := "0.0.1-SNAPSHOT",
+      version := "0.0.3-SNAPSHOT",
       scalaVersion := "2.11.6",
       scalacOptions := scalacOptionsList,
       resolvers ++= Seq(
@@ -78,8 +89,7 @@ object BetterDocsBuild extends Build {
      // retrieveManaged := true, // enable this if we need jars of dependencies.
       crossPaths := false,
       fork := true,
-      javaOptions += "-Xmx3072m", // For running spark job.
-      javacOptions ++= Seq("-source", "1.6"),
+      javacOptions ++= Seq("-source", "1.7"),
       javaOptions += "-Xmx2048m",
       javaOptions += "-XX:+HeapDumpOnOutOfMemoryError"
 
@@ -105,14 +115,14 @@ object Dependencies {
   val graphx =  "org.apache.spark" % "spark-graphx_2.11" % "1.2.1" 
   val esSpark = "org.elasticsearch" % "elasticsearch-spark_2.11" % "2.1.0.Beta4" 
   val jobserver = "spark.jobserver" % "job-server-api" % "0.5.0" % "provided"
-
+  val commonsIO = "commons-io" % "commons-io" % "2.4"
   val betterDocs = Seq(spark, parserCombinator, scalaTest, slf4j, javaparser, json4s, config,
-    json4sJackson, jgit, mllib, graphx, esSpark, jobserver)
-
+    json4sJackson, jgit, commonsIO, mllib, graphx, esSpark, jobserver)
+  val ideaPluginTest = Seq(scalaTest, commonsIO)
 
   val ideaPlugin = Seq()
+
   // transitively uses
-  // commons-io-2.4
   // commons-compress-1.4.1
 
 }

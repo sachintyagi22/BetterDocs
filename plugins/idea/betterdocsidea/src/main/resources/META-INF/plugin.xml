@@ -1,9 +1,9 @@
 <idea-plugin version="3">
   <id>betterdocsidea</id>
   <name>Better Docs Plugin for Intellij Idea</name>
-  <version>0.0.1-beta</version>
+  <version>0.0.3-SNAPSHOT</version>
 
-  <vendor email="betterdocs@googlegroups.com" url="https://github.com/ScrapCodes/BetterDocs/issues">Betterdocs</vendor>
+  <vendor email="betterdocs@googlegroups.com" url="https://github.com/Imaginea/BetterDocs">Imaginea</vendor>
 
   <description><![CDATA[
     <strong><i>Betterdocs is not docs.</i></strong>
@@ -25,11 +25,12 @@
   <b>Current Status:</b> Beta</p>
 <br/><p>
   <b>Supported Languages:</b> Java</p>
+  <b>Report issues:</b> <a href="https://github.com/Imaginea/BetterDocs/issues">Betterdocs issue tracker</a>
 
     ]]></description>
 
   <change-notes><![CDATA[
-    This is a first ever limited audience beta testing release.
+    See milestone <a href="https://github.com/Imaginea/BetterDocs/milestones/v0.0.3-betterdocs-idea-plugin">v0.0.3-betterdocs-idea-plugin</a> on github.
     ]]>
   </change-notes>
 
@@ -54,8 +55,8 @@
     </actions>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="Better Docs" anchor="right" factoryClass="com.imaginea.betterdocs.BetterDocsWindow"/>
-        <applicationConfigurable instance="com.imaginea.betterdocs.BetterDocsSettings"/>
+        <toolWindow id="Better Docs" anchor="right" factoryClass="com.imaginea.betterdocs.MainWindow"/>
+        <applicationConfigurable instance="com.imaginea.betterdocs.SettingsPanel"/>
     </extensions>
 </idea-plugin>
 

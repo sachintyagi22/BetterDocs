@@ -21,7 +21,7 @@ import java.io.File
 import java.net.URL
 
 import com.betterdocs.configuration.BetterDocsConfig
-import com.betterdocs.crawler.GitHubRepoDownloaderActor._
+import com.betterdocs.crawler.GitHubRepoDownloader._
 import com.betterdocs.logging.Logger
 import org.apache.commons.httpclient.HttpClient
 import org.apache.commons.httpclient.methods.GetMethod
@@ -37,7 +37,7 @@ case class Repository(login: String, id: Int, name: String, fork: Boolean, langu
 
 /** For testing */
 object Repository {
-  def invalid = Repository("n-a", -1, "n-a", fork = false, "Java", "n-a", 0)
+  def invalid: Repository = Repository("n-a", -1, "n-a", fork = false, "Java", "n-a", 0)
 }
 
 /**
@@ -104,7 +104,7 @@ object GitHubApiHelper extends Logger {
   /*
    * Find the number of repo pages in an organisation.
    */
-  def repoPagesCount(url: String) = executeMethod(url, token).getResponseHeader("Link").
+  def repoPagesCount(url: String): Int = executeMethod(url, token).getResponseHeader("Link").
     getElements.toList(1).getValue.substring(0, 2).replaceAll("\\W+", "").toInt
 
   /*

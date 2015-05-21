@@ -35,6 +35,7 @@ object BetterDocsConfig {
   private[betterdocs] val sparkIndexOutput = get("betterdocs.spark.index.outputDir").get
   private[betterdocs] val sparkRepoOutput = get("betterdocs.spark.repo.outputDir").get
   private[betterdocs] val sparkSourceOutput = get("betterdocs.spark.source.outputDir").get
+  private[betterdocs] val sparkMethodsOutput = get("betterdocs.spark.method.outputDir").get
 
   private[betterdocs] val linesOfContext = get("betterdocs.indexing.linesOfContext").get
   // This is required to use GithubAPIHelper
@@ -44,7 +45,7 @@ object BetterDocsConfig {
   private[betterdocs] val githubDir: String = get("betterdocs.github.crawlDir").get
   private[betterdocs] val sparkMaster: String = get("betterdocs.spark.master").get
 
-  def nextToken(arr: Array[String] = githubTokens) = {
+  def nextToken(arr: Array[String] = githubTokens): String = {
     if (lastIndex == arr.length - 1) {
       lastIndex = 0
       arr(lastIndex)

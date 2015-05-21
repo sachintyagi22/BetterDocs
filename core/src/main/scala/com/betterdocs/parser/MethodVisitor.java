@@ -51,6 +51,9 @@ public class MethodVisitor extends VoidVisitorAdapter {
     private HashMap<String, ArrayList<Integer>> lineNumbersMap = new HashMap<String, ArrayList<Integer>>();
     private ArrayList<HashMap<String, ArrayList<Integer>>> listOflineNumbersMap = new
             ArrayList<HashMap<String, ArrayList<Integer>>>();
+    private HashMap<String, ArrayList<Integer>> methodAndLineNumbers = new HashMap<String, ArrayList<Integer>>();
+    private HashMap<String, HashMap<String, ArrayList<Integer>>> importsAndLineNumbers =
+            new HashMap<String, HashMap<String, ArrayList<Integer>>>();
 
     public void parse(String classcontent, String filename) throws Throwable {
         if (classcontent == null || classcontent.isEmpty()) {
@@ -59,12 +62,12 @@ public class MethodVisitor extends VoidVisitorAdapter {
         try {
             parse(new ByteArrayInputStream(classcontent.getBytes()));
         } catch (Throwable e) {
-            //System.err.println("Could not parse. Skipping file: " + filename + ", exception: " +
-            //        e.getMessage());
-            throw e;
+            System.err.println("Could not parse. Skipping file: " + filename + ", exception: " +
+                    e.getMessage());
+//            throw e;
         }
 
-        //System.out.println("Parsed file : " + filename);
+//        System.out.println("Parsed file : " + filename);
     }
 
     @SuppressWarnings("unchecked")
@@ -276,6 +279,21 @@ public class MethodVisitor extends VoidVisitorAdapter {
     @Override
     public void visit(MethodCallExpr n, Object arg) {
         Expression s = n.getScope();
+        String fullScope = getFullScope(s);
+
+        if (importsAndLineNumbers.containsKey(fullScope)) {
+            HashMap<String, ArrayList<Integer>> methodAndLineNumbers = importsAndLineNumbers
+                    .get(fullScope);
+            updateImportWithMethodAndLineNumbers(n, fullScope,
+                    methodAndLineNumbers);
+        } else {
+            HashMap<String, ArrayList<Integer>> methodAndLineNumbers = new HashMap<String, ArrayList<Integer>>();
+            ArrayList<Integer> arr = new ArrayList<Integer>();
+            arr.add(n.getBeginLine());
+            methodAndLineNumbers.put(n.getName(), arr);
+            importsAndLineNumbers.put(fullScope, methodAndLineNumbers);
+        }
+
         List<Expression> args = n.getArgs();
         if (args != null) {
             for (Expression e : args) {
@@ -348,8 +366,9 @@ public class MethodVisitor extends VoidVisitorAdapter {
     }
 
     private String fullType(String type) {
-        String fullType = importDeclMap.get(type.toString());
-        fullType = fullType == null ? type.toString() : fullType;
+        String typeParamsStripped = type.replaceFirst("<.*>", "").trim();
+        String fullType = importDeclMap.get(typeParamsStripped);
+        fullType = fullType == null ? typeParamsStripped : fullType;
         return fullType;
     }
 
@@ -371,6 +390,22 @@ public class MethodVisitor extends VoidVisitorAdapter {
             }
 
         }
+    }
+
+    private void updateImportWithMethodAndLineNumbers(MethodCallExpr n,
+                                                      String fullScope,
+                                                      HashMap<String, ArrayList<Integer>> methodAndLineNumbers) {
+        if (methodAndLineNumbers.containsKey(n.getName())) {
+            ArrayList<Integer> arr = methodAndLineNumbers.get(n.getName());
+            arr.add(n.getBeginLine());
+            methodAndLineNumbers.put(n.getName(), arr);
+        } else {
+            ArrayList<Integer> arr = new ArrayList<Integer>();
+            arr.add(n.getBeginLine());
+            methodAndLineNumbers.put(n.getName(), arr);
+        }
+
+        importsAndLineNumbers.put(fullScope, methodAndLineNumbers);
     }
 
     @SuppressWarnings("unchecked")
@@ -400,5 +435,9 @@ public class MethodVisitor extends VoidVisitorAdapter {
 
     public Map<String, String> getImportDeclMap() {
         return importDeclMap;
+    }
+
+    public HashMap<String, HashMap<String, ArrayList<Integer>>> getImportsWithMethodAndLineNumber() {
+        return importsAndLineNumbers;
     }
 }

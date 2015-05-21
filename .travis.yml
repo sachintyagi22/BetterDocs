@@ -29,7 +29,7 @@ env:
     - IDEA_LIB="$(pwd)/idea-IC/lib"
     - STYLE_OUTPUT="$(pwd)/plugins/idea/betterdocsidea/target/"
 script:
--  sbt scalastyle test findbugs checkstyle cpd pmd && cat "$STYLE_OUTPUT"/cpd/cpd.xml "$STYLE_OUTPUT"/pmd.xml "$STYLE_OUTPUT"/checkstyle-result.xml "$STYLE_OUTPUT"/findbugs/report.xml
+-  sbt scalastyle test:scalastyle test findbugs checkstyle cpd pmd && cat "$STYLE_OUTPUT"/cpd/cpd.xml "$STYLE_OUTPUT"/pmd.xml "$STYLE_OUTPUT"/checkstyle-result.xml "$STYLE_OUTPUT"/findbugs/report.xml
 
 notifications:
 email: true

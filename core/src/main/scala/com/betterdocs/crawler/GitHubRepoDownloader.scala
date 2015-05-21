@@ -25,12 +25,12 @@ import akka.actor.ActorSystem
 import com.betterdocs.logging.Logger
 import com.betterdocs.configuration.BetterDocsConfig
 
-class GitHubRepoDownloaderActor extends Actor with Logger {
+class GitHubRepoDownloader extends Actor with Logger {
 
-  import GitHubRepoDownloaderActor._
+  import GitHubRepoDownloader._
   import GitHubRepoCrawlerApp._
 
-  def receive = {
+  def receive: PartialFunction[Any, Unit] = {
 
     case DownloadOrganisationRepos(organisation) => downloadFromOrganization(organisation)
 
@@ -40,8 +40,9 @@ class GitHubRepoDownloaderActor extends Actor with Logger {
         self ! DownloadPublicRepos(nextSince)
       } catch {
         case ex: Exception =>
-          log.error("Exception occured.." + "Trying to download, waiting for other tokens " + ex.getMessage)
-          
+          log.error("Exception occured" + ex.getMessage +
+            "Trying to download, waiting for other tokens")
+
           self ! DownloadPublicRepos(since)
       }
 
@@ -55,7 +56,7 @@ class GitHubRepoDownloaderActor extends Actor with Logger {
 
 }
 
-object GitHubRepoDownloaderActor {
+object GitHubRepoDownloader {
 
   case class DownloadOrganisationRepos(organisation: String)
 
@@ -65,5 +66,5 @@ object GitHubRepoDownloaderActor {
 
   val system = ActorSystem("RepoDownloder")
 
-  val repoDownloader = system.actorOf(Props[GitHubRepoDownloaderActor])
+  val repoDownloader = system.actorOf(Props[GitHubRepoDownloader])
 }

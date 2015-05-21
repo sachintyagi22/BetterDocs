@@ -34,9 +34,8 @@ class JavaASTBasedIndexer extends BasicIndexer with Logger {
     val parser = new MethodVisitor()
     parser.parse(fileContent, fileName)
     import scala.collection.JavaConversions._
-    val imports = parser.getImportDeclMap.toIterator.map(x => (x._2.stripSuffix(s".${x._1}"), x
-      ._1))
-      .filterNot { case (left, right) => excludePackages.contains(left) }.toSet
+    val imports = parser.getImportDeclMap.toIterator.map(x => (x._2.stripSuffix(s".${x._1}"),
+      x._1)).filterNot { case (left, right) => excludePackages.contains(left) }.toSet
     val importsSet = imports.map(tuple2ToImportString)
 
     (imports,

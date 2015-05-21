@@ -99,8 +99,8 @@ class JavaASTBasedIndexerSuite extends FunSuite with BeforeAndAfterAll {
     Thread.currentThread().getContextClassLoader.getResourceAsStream("TransportClient.java")
   val writer = new StringWriter()
   val allOccurrences = List(74, 75, 79, 101, 103, 105, 106, 108, 109, 112, 114, 117, 118, 119, 120,
-    121, 123, 125, 137, 139, 141, 144, 145, 148, 150, 153, 154, 156, 158, 160, 172, 187, 188, 189,
-    191, 198, 203, 204)
+    121, 123, 125, 137, 139, 141, 144, 145, 148, 150, 153, 154, 156, 158, 160, 172, 177, 182, 187,
+    188, 189, 191, 198, 203, 204)
   val sampleRepo = Repository("sample", 0, "sample", false, "Java", "master", 0)
   override def beforeAll() {
     IOUtils.copy(stream, writer)
