@@ -31,7 +31,7 @@ import com.betterdocs.crawler.Repository
 import com.betterdocs.indexer.JavaFileIndexerHelper.fileNameToURL
 
 case class RepoDetails(fullRepoName: String, score: Int, orgsName: String, pckgDeclCountMap: Map[String, Int], pckgUsedCountMap: Map[String, Int])
-case class ClassMethodDetails(methodUrl: String, callStack: List[String], className: String, usedPckgs: Set[String], pckg: String, isTest: Boolean)
+case class ClassMethodDetails(methodUrl: String, callStack: List[String], className: String, usedPckgs: Set[String], pckg: String, isTest: Boolean, score: Int, repoId: Int)
 
 trait TransactionGenerator extends Serializable {
  
@@ -45,6 +45,10 @@ class JavaMethodTransactionGenerator extends TransactionGenerator {
   override def generateTransactions(files: Map[String, String], excludePackages: List[String],
       score: Int, orgsName: String, repo: Option[Repository]): (RepoDetails, mutable.Set[ClassMethodDetails]) = {
 
+    val actualRepo = repo.getOrElse(Repository.invalid) 
+    if(actualRepo.id == -1){
+      println("Invalid Repo : " + orgsName)
+    }
     //var methodCallMap = new java.util.HashMap[String, java.util.List[String]]()
     var methodList = mutable.Set[ClassMethodDetails]();
     /*var repoDeclaredPackages = new java.util.HashSet[String]()
@@ -63,15 +67,16 @@ class JavaMethodTransactionGenerator extends TransactionGenerator {
           .stripPrefix("-")
       }$actualFileName""" **/
       
-        
-      val fullGithubURL  = fileNameToURL(repo.getOrElse(Repository.invalid), fileName)
+       
+      val fullGithubURL  = fileNameToURL(actualRepo, fileName)
       
       val parser = new JavaFileParser()
       parser.parse(fileContent, fullGithubURL, score) 
       
+      
       val thisMap = parser.getMethodCallStack;
       for(entry <- thisMap){
-        methodList.add(ClassMethodDetails(entry._1, entry._2.toList, parser.getClazzName , parser.gedUsedPackages.toSet, parser.getDeclaredPackage, parser.isTestClass))        
+        methodList.add(ClassMethodDetails(entry._1, entry._2.toList, parser.getClazzName , parser.gedUsedPackages.toSet, parser.getDeclaredPackage, parser.isTestClass, score, actualRepo.id))        
       }
       
       //methodCallMap.putAll(thisMap)

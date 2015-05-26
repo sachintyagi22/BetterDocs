@@ -28,7 +28,9 @@ import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.net.MalformedURLException;
 import java.net.URLEncoder;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -36,12 +38,12 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
 
 public class ESUtils {
-    private static final String FILE_CONTENT = "fileContent";
+    private static final String FILE_CONTENT = "content";
     private static final String HITS = "hits";
     private static final String SOURCE = "_source";
     private static final String FILE = "file";
     private static final String TOKENS = "tokens";
-    private static final String SOURCEFILE_SEARCH = "/sourcefile/_search?source=";
+    private static final String SOURCEFILE_SEARCH = "/content/_search?source=";
     private static final String REPOSITORY_SEARCH = "/repository/_search?source=";
     private static final String FAILED_HTTP_ERROR_CODE = "Failed : HTTP error code : ";
     private static final String USER_AGENT = "USER-AGENT";
@@ -56,6 +58,7 @@ public class ESUtils {
 
     public final String getContentsForFile(final String file) {
         String esFileQueryJson = jsonUtils.getJsonForFileContent(file);
+        esFileQueryJson = esFileQueryJson.replaceAll("fileName", "fileUrl");
         String esFileResultJson = getESResultJson(esFileQueryJson,
                                     windowObjects.getEsURL() + SOURCEFILE_SEARCH);
         JsonArray hitsArray = getJsonElements(esFileResultJson);
@@ -87,6 +90,41 @@ public class ESUtils {
             fileTokenMap.put(fileName, tokens);
         }
         return fileTokenMap;
+    }
+
+    //Fixme: move this to someplace else
+    public Map<String, ArrayList<CodeInfo>> getProjectNodes(final String esResultJson) {
+        JsonArray hitsArray = getJsonElements(esResultJson);
+
+        Map<String, ArrayList<CodeInfo>> projectNodes = new HashMap<String, ArrayList<CodeInfo>>();
+        for (JsonElement hits : hitsArray) {
+            JsonObject hitObject = hits.getAsJsonObject();
+            JsonObject sourceObject = hitObject.getAsJsonObject(SOURCE);
+            String fileName = sourceObject.getAsJsonPrimitive("file").getAsString();
+            //Extracting repoIds for future use
+            int repoId = sourceObject.getAsJsonPrimitive(REPO_ID).getAsInt();
+            if(repoId < 0){
+                continue;
+            }
+            String project = getProjectName(fileName);
+            if (!windowObjects.getRepoNameIdMap().containsKey(project)) {
+                windowObjects.getRepoNameIdMap().put(project, repoId);
+            }
+
+            String methodUrl = sourceObject.getAsJsonPrimitive("method").getAsString();
+            String linesRange = methodUrl.split("#")[1];
+            String[] startEnd= linesRange.split("-");
+            String start = startEnd[0].substring(1);
+            String end = startEnd[1];
+
+            ArrayList<CodeInfo> projectCodeInfos = projectNodes.get(project);
+            if(projectCodeInfos == null){
+                projectCodeInfos = new ArrayList<CodeInfo>();
+                projectNodes.put(project, projectCodeInfos);
+            }
+            projectCodeInfos.add(new CodeInfo(fileName, Integer.parseInt(start), Integer.parseInt(end)));
+        }
+        return projectNodes;
     }
 
     protected final JsonArray getJsonElements(final String esResultJson) {
@@ -139,8 +177,9 @@ public class ESUtils {
         return stringBuilder.toString();
     }
 
+    //FIXME
     public final String getRepoStars(final String repoStarsJson) {
-        String repoStarResultJson = getESResultJson(repoStarsJson,
+       /* String repoStarResultJson = getESResultJson(repoStarsJson,
                 windowObjects.getEsURL() + REPOSITORY_SEARCH);
         JsonArray hitsArray = getJsonElements(repoStarResultJson);
 
@@ -148,7 +187,8 @@ public class ESUtils {
         JsonObject sourceObject = hitObject.getAsJsonObject(SOURCE);
         //Replacing \r as it's treated as bad end of line character
         String stars = sourceObject.getAsJsonPrimitive(STARGAZERS_COUNT).getAsString();
-        return stars;
+        return stars;*/
+        return "0";
     }
 
     protected final String getProjectName(final String fileName) {

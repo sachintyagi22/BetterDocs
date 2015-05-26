@@ -17,6 +17,7 @@
 
 package com.imaginea.betterdocs;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class CodeInfo {
@@ -39,6 +40,16 @@ public class CodeInfo {
     public CodeInfo(final String pfileName, final List<Integer> plineNumbers) {
         this.fileName = pfileName;
         this.lineNumbers = plineNumbers;
+    }
+
+    public CodeInfo(final String pfileName, final int start, final int end){
+        List<Integer> lineNumbers = new ArrayList<Integer>(end-start+1);
+        for(Integer i=start; i<= end; i++){
+            lineNumbers.add(i);
+        }
+        this.fileName = pfileName;
+        this.lineNumbers = lineNumbers;
+
     }
 
     public final void setContents(final String pcontents) {

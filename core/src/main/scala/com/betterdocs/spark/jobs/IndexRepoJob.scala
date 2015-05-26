@@ -74,8 +74,8 @@ object IndexRepoJob extends SparkJob with NamedRddSupport {
     //Store parsed transaction      
     repoDetails.flatMap(f => f._2).filter { 
             f => f.callStack.size > transactionSize}.map { 
-              x => Map("method" -> x.methodUrl, "parent"-> x.methodUrl.split("#").apply(0),  "class" -> x.className, "events" -> x.callStack, 
-                  "istest" -> x.isTest, "pckg" -> x.pckg, "usedPckgs" -> x.usedPckgs) }.saveToEs("parsed/transactions", Map("es.mapping.parent"-> "parent"))
+              x => Map("method" -> x.methodUrl, "file"-> x.methodUrl.split("#").apply(0),  "class" -> x.className, "events" -> x.callStack, 
+                  "istest" -> x.isTest, "pckg" -> x.pckg, "usedPckgs" -> x.usedPckgs, "score" -> x.score, "repoId" -> x.repoId) }.saveToEs("parsed/transactions", Map("es.mapping.parent"-> "file"))
 
     
                   
@@ -85,7 +85,7 @@ object IndexRepoJob extends SparkJob with NamedRddSupport {
   def readOrSaveRepos(sc: SparkContext, githubPath: String): RDD[(ArrayBuffer[(String, String)], Option[Int], Option[String], Option[Repository])] = {
     val repos = sc.binaryFiles(githubPath).map { x =>
       val zipFileName = x._1.stripPrefix("file:")
-      println("Reading Zip:  " + zipFileName)
+      //println("Reading Zip:  " + zipFileName)
       val z = new ZipFile(zipFileName)
       val score = getGitScore(zipFileName)
       val orgsName = getOrgsName(zipFileName)

@@ -17,6 +17,7 @@
 
 package com.imaginea.betterdocs;
 
+import com.intellij.lang.ASTNode;
 import com.intellij.openapi.editor.CaretModel;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
@@ -35,13 +36,10 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.JavaDirectoryService;
-import com.intellij.psi.PsiDirectory;
-import com.intellij.psi.PsiDocumentManager;
-import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiManager;
-import com.intellij.psi.PsiPackage;
+import com.intellij.psi.*;
+import com.intellij.psi.formatter.java.MethodCallExpressionBlock;
+import com.intellij.psi.impl.source.PsiFieldImpl;
+import com.intellij.psi.impl.source.tree.JavaElementType;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.ui.JBColor;
 import com.intellij.util.containers.ContainerUtil;
@@ -54,12 +52,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.StringTokenizer;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -167,7 +160,83 @@ public class EditorDocOps {
         return imports;
     }
 
-    public final Set<String> getInternalImports(@NotNull final Project project) {
+    //FIXME
+        public final Map<String, Set<String>> getImportsMap(@NotNull final Document document,
+                                        @NotNull final Project project, Integer offset) {
+        Map<String, Set<String>> importsMap = new HashMap<String, Set<String>>();
+
+
+        PsiDocumentManager psiInstance = PsiDocumentManager.getInstance(project);
+
+        if (psiInstance != null && (psiInstance.getPsiFile(document)) != null) {
+            PsiFile psiFile = psiInstance.getPsiFile(document);
+            if (psiFile != null) {
+
+                importsMap.put("method", getImportsInMethodScope(psiFile.findElementAt(offset)));
+                importsMap.put("class", getImportsInClassScope(psiFile.findElementAt(offset)));
+            }
+        }
+
+        return importsMap;
+    }
+
+    public final Set<String> getImportsInClassScope(PsiElement elem) {
+
+        Set<String> imports = new HashSet<String>();
+        while(elem!=null && elem.getNode()!=null && elem.getNode().getElementType() != null
+                && !elem.getNode().getElementType().equals(JavaElementType.CLASS)){
+            elem=elem.getParent();
+        }
+
+        if(elem!=null && elem.getNode()!=null && elem.getNode().getElementType() != null &&
+                elem.getNode().getElementType().equals(JavaElementType.CLASS)){
+            ASTNode node = elem.getNode();
+            PsiElement[] children = node.getPsi().getChildren();
+            if(children!= null && children.length > 0){
+                for(PsiElement child: children){
+                    if(child.getNode().getElementType().equals(JavaElementType.FIELD)){
+                       imports.add(((PsiFieldImpl)child).getType().getCanonicalText());
+                    }
+                }
+            }
+
+        }
+        return imports;
+    }
+
+    public final Set<String> getImportsInMethodScope(PsiElement elem) {
+
+        Set<String> imports = new HashSet<String>();
+        while(elem!=null && elem.getNode()!=null && elem.getNode().getElementType() != null
+                && !elem.getNode().getElementType().equals(JavaElementType.METHOD)){
+            elem=elem.getParent();
+        }
+
+        if(elem!=null && elem.getNode()!=null && elem.getNode().getElementType() != null
+                && elem.getNode().getElementType().equals(JavaElementType.METHOD)){
+            ASTNode node = elem.getNode();
+            ASTNode child = node.findChildByType(JavaElementType.PARAMETER_LIST);
+            PsiParameter[] params = ((PsiParameterList)child.getPsi()).getParameters();
+            if(params != null && params.length > 0){
+                for(PsiParameter p : params){
+                    imports.add(p.getTypeElement().getType().getCanonicalText());
+                }
+            }
+
+            ASTNode codeBlock = node.findChildByType(JavaElementType.CODE_BLOCK);
+            PsiElement[] children = codeBlock.getPsi().getChildren();
+            if(children!= null && children.length > 0){
+                for(PsiElement ch: children){
+                    if (ch.getNode().getElementType().equals(JavaElementType.DECLARATION_STATEMENT)) {
+                        imports.add(((PsiDeclarationStatement) ch).getNode().getText());
+                    }
+                }
+            }
+        }
+        return imports;
+    }
+
+    public final Set<String> getInternalImports (@NotNull final Project project) {
         final Set<String> internalImports = new HashSet<String>();
         GlobalSearchScope scope = GlobalSearchScope.projectScope(project);
         final List<VirtualFile> sourceRoots = new ArrayList<VirtualFile>();
@@ -370,9 +439,10 @@ public class EditorDocOps {
                 int startOffset = document.getLineStartOffset(line);
                 int endOffset = document.getLineEndOffset(line)
                         + document.getLineSeparatorLength(line);
+                //FIXME: Do not trim
                 String code = document.getCharsSequence().
                         subSequence(startOffset, endOffset).
-                        toString().trim()
+                        toString()//.trim()
                         + System.lineSeparator();
                 stringBuilder.append(code);
             }

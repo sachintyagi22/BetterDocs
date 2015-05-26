@@ -79,7 +79,7 @@ public class JSONUtils {
         return gson.toJson(repoStarsJSON).replaceAll(ID, TYPEREPOSITORY_ID);
     }
 
-    public final String getESQueryJson(final Set<String> importsInLines, final int size) {
+    public final String getESQueryJson(final Set<String> mustImports, final Set<String> shouldImports, final int size) {
         ESQuery esQuery = new ESQuery();
         ESQuery.Query query = new ESQuery.Query();
         esQuery.setQuery(query);
@@ -98,27 +98,38 @@ public class JSONUtils {
         sortList.add(sort);
         esQuery.setSort(sortList);
 
-        ESQuery.Bool bool = new ESQuery.Bool();
-        query.setBool(bool);
-
         List<ESQuery.Must> mustList = new ArrayList<ESQuery.Must>();
+        List<ESQuery.Must> shouldList = new ArrayList<ESQuery.Must>();
+        List<ESQuery.Must> mustNotList = new ArrayList<ESQuery.Must>();
+
+        ESQuery.Bool bool = new ESQuery.Bool();
+        bool.setMust(mustList);
+        bool.setMustNot(mustNotList);
+        bool.setShould(shouldList);
+        query.setBool(bool);
 
         ESQuery.Must must;
         ESQuery.Term term;
 
-        for (String nextImport : importsInLines) {
+        for (String nextImport : mustImports) {
             must = new ESQuery.Must();
-            bool.setMust(mustList);
-            bool.setMustNot(new ArrayList<ESQuery.Must>());
-            bool.setShould(new ArrayList<ESQuery.Must>());
             term = new ESQuery.Term();
             must.setTerm(term);
             term.setImportName(nextImport);
             mustList.add(must);
         }
 
+        for (String nextImport : shouldImports) {
+            ESQuery.Must should = new ESQuery.Must();
+            term = new ESQuery.Term();
+            should.setTerm(term);
+            term.setImportName(nextImport);
+            shouldList.add(should);
+        }
+
         Gson gson = new Gson();
-        return gson.toJson(esQuery).replaceAll(IMPORT_NAME, CUSTOM_TOKENS_IMPORT_NAME);
+        //FIXME: Hack
+        return gson.toJson(esQuery).replaceAll(IMPORT_NAME, "events" /**CUSTOM_TOKENS_IMPORT_NAME**/);
     }
 
     public final List<Integer> getLineNumbers(final Collection<String> imports,

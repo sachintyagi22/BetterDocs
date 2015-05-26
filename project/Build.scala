@@ -43,7 +43,7 @@ object BetterDocsBuild extends Build {
 
   // This is required for plugin devlopment.
   val ideaLib = sys.env.get("IDEA_LIB").orElse(sys.props.get("idea.lib"))
-
+	println("idea lib "+ ideaLib)
   def aggregatedProjects: Seq[ProjectReference] = {
     if (ideaLib.isDefined) {
       Seq(core, ideaPlugin, pluginTests)

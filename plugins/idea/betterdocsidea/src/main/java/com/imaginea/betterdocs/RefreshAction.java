@@ -25,6 +25,7 @@ import com.intellij.notification.Notifications;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.editor.CaretModel;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.EditorFactory;
@@ -70,8 +71,8 @@ public class RefreshAction extends AnAction {
     protected static final String ES_URL = "esURL";
     protected static final String DISTANCE = "distance";
     protected static final String SIZE = "size";
-    private static final String BETTERDOCS_SEARCH = "/betterdocs/_search?source=";
-    protected static final String ES_URL_DEFAULT = "http://labs.imaginea.com/betterdocs";
+    private static final String BETTERDOCS_SEARCH = "/transactions/_search?source=";
+    protected static final String ES_URL_DEFAULT = "http://172.16.12.241:9200/parsed";
     protected static final int DISTANCE_DEFAULT_VALUE = 10;
     protected static final int SIZE_DEFAULT_VALUE = 30;
     private static final String EDITOR_ERROR = "Could not get any active editor";
@@ -149,6 +150,14 @@ public class RefreshAction extends AnAction {
     @NotNull
     private Future<Map<String, ArrayList<CodeInfo>>> getMapFuture(
             final Editor projectEditor, final DefaultMutableTreeNode root) {
+        Integer o = 0;
+
+        if (projectEditor != null) {
+            CaretModel caretModel = projectEditor.getCaretModel();
+            o = caretModel.getOffset();
+        }
+
+        final Integer offset = o;
         return ApplicationManager.getApplication().executeOnPooledThread(
                 new Callable<Map<String, ArrayList<CodeInfo>>>() {
                     @Override
@@ -157,7 +166,7 @@ public class RefreshAction extends AnAction {
                                 new HashMap<String, ArrayList<CodeInfo>>();
                         ApplicationManager.getApplication().
                                 runReadAction(new ProjectNodesWorker(projectNodes,
-                                        projectEditor, root));
+                                        projectEditor, root, offset));
                         return projectNodes;
                     }
                 });
@@ -196,15 +205,15 @@ public class RefreshAction extends AnAction {
     }
 
     private Map<String, ArrayList<CodeInfo>>  runWorker(final Editor projectEditor,
-                                                        final DefaultMutableTreeNode root) {
+                                                        final DefaultMutableTreeNode root, final Integer offset) {
         Map<String, ArrayList<CodeInfo>> projectNodes =
                 new HashMap<String, ArrayList<CodeInfo>>();
-        Set<String> externalImports = getImports(projectEditor);
-        Set<String> importsInLines = getImportsInLines(projectEditor, externalImports);
-        if (!importsInLines.isEmpty()) {
-            String esResultJson = getResultJson(importsInLines);
+        Map<String, Set<String>>  externalImports = getImports(projectEditor, offset);
+        //Set<String> importsInLines = getImportsInLines(projectEditor, externalImports);
+        if (externalImports!=null && !externalImports.isEmpty()) {
+            String esResultJson = getResultJson(externalImports.get("method"), externalImports.get("class"));
             if (!esResultJson.equals(EMPTY_ES_URL)) {
-                projectNodes = updateRoot(root, externalImports, importsInLines, esResultJson);
+                projectNodes = updateRoot(root, externalImports.get("class"), esResultJson);
             } else {
                 showHelpInfo(String.format(EMPTY_ES_URL, windowObjects.getEsURL()));
             }
@@ -213,13 +222,15 @@ public class RefreshAction extends AnAction {
     }
 
     private Map<String, ArrayList<CodeInfo>> updateRoot(final DefaultMutableTreeNode root,
-                                                        final Set<String> externalImports,
                                                         final Set<String> importsInLines,
                                                         final String esResultJson) {
         Map<String, ArrayList<CodeInfo>> projectNodes;
-        Map<String, String> fileTokensMap =
-                esUtils.getFileTokens(esResultJson);
-        projectNodes = projectTree.updateProjectNodes(externalImports, fileTokensMap);
+        /*Map<String, String> fileTokensMap =
+                esUtils.getFileTokens(esResultJson);*/
+        //Fixme: Make modular
+        //projectNodes = projectTree.updateProjectNodes(externalImports, fileTokensMap);
+        projectNodes = esUtils.getProjectNodes(esResultJson);
+        projectTree.updateProjectNodes(projectNodes);
         projectTree.updateRoot(root, projectNodes);
         Notifications.Bus.notify(new Notification(BETTER_DOCS,
                 String.format(FORMAT, QUERYING,
@@ -237,9 +248,19 @@ public class RefreshAction extends AnAction {
         return editorDocOps.importsInLines(lines, externalImports);
     }
 
-    private Set<String> getImports(final Editor projectEditor) {
-        Set<String> imports =
-                editorDocOps.getImports(projectEditor.getDocument(), windowObjects.getProject());
+    private Map<String, Set<String>> getImports(final Editor projectEditor, final Integer offset) {
+        /*Set<String> imports =
+                editorDocOps.getImports(projectEditor.getDocument(), windowObjects.getProject());*/
+        Map<String, Set<String>>  importsMap =
+                editorDocOps.getImportsMap(projectEditor.getDocument(), windowObjects.getProject() , offset);
+
+        for(Map.Entry<String, Set<String>> e: importsMap.entrySet()){
+            e.setValue(cleanse(e.getValue()));
+        }
+        return importsMap;
+    }
+
+    private Set<String> cleanse(Set<String> imports) {
         if (propertiesComponent.isValueSet(EXCLUDE_IMPORT_LIST)) {
             String excludeImport = propertiesComponent.getValue(EXCLUDE_IMPORT_LIST);
             if (excludeImport != null) {
@@ -250,8 +271,8 @@ public class RefreshAction extends AnAction {
         return editorDocOps.excludeInternalImports(imports, internalImports);
     }
 
-    private String getResultJson(final Set<String> importsInLines) {
-        String esQueryJson = jsonUtils.getESQueryJson(importsInLines,
+    private String getResultJson(final Set<String> requiredImports, final Set<String> optionalImports) {
+        String esQueryJson = jsonUtils.getESQueryJson(requiredImports, optionalImports,
                 windowObjects.getSize());
         return esUtils.getESResultJson(esQueryJson,
                 windowObjects.getEsURL()
@@ -389,15 +410,18 @@ public class RefreshAction extends AnAction {
         private final Map<String, ArrayList<CodeInfo>> projectNodes;
         private final Editor projectEditor;
         private final DefaultMutableTreeNode root;
+        private final Integer offset;
         public ProjectNodesWorker(final Map<String, ArrayList<CodeInfo>> pProjectNodes,
                                   final Editor pProjectEditor,
-                                  final DefaultMutableTreeNode pRoot) {
+                                  final DefaultMutableTreeNode pRoot,
+                                  final Integer offset) {
             this.projectNodes = pProjectNodes;
             this.projectEditor = pProjectEditor;
             this.root = pRoot;
+            this.offset = offset;
         }
         public void run() {
-            projectNodes.putAll(runWorker(projectEditor, root));
+            projectNodes.putAll(runWorker(projectEditor, root, offset));
         }
     }
 }

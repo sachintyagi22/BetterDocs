@@ -126,6 +126,23 @@ public class ProjectTree {
         return projectNodes;
     }
 
+    //FIXME
+    public void updateProjectNodes(final Map<String, ArrayList<CodeInfo>> projectNodes){
+        for (Map.Entry<String, ArrayList<CodeInfo>> entry : projectNodes.entrySet()) {
+            ArrayList<CodeInfo> codeInfoList = entry.getValue();
+            for(CodeInfo c : codeInfoList){
+
+                if (!windowObjects.getFileNameNumbersMap().containsKey(c.getFileName())) {
+                    List<Integer> lineNumbers = c.getLineNumbers();
+                    windowObjects.getFileNameNumbersMap().put(c.getFileName(), lineNumbers);
+                }else{
+                    List<Integer>  lineNumbers = windowObjects.getFileNameNumbersMap().get(c.getFileName());
+                    lineNumbers.addAll(c.getLineNumbers());
+                }
+            }
+        }
+    }
+
     public final DefaultMutableTreeNode updateRoot(final DefaultMutableTreeNode root,
                                                    final  Map<String,
                                                            ArrayList<CodeInfo>> projectNodes) {
